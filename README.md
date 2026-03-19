@@ -101,7 +101,12 @@ This is V1 — a stationary baseline model. Known limitations:
 
 ---
 
-## Author
+## License
+
+This project is licensed under the MIT License. See the LICENSE file for details.
+
+---
+## Creator
 
 Dylan — Actuarial Science & Statistics, University of Toronto  
 Working toward ACAS | Exam P — Summer 2026
