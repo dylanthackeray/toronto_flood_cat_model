@@ -32,15 +32,16 @@ For full technical detail and my story on statistical choices, prior constructio
 threshold selection, and physical justifications see:
 
 → [Statistical Methodology](METHODOLOGY.md)
+
 ---
 
-## Data
+## A Note On Process
 
-| Data | Source |
-|---|---|
-| Daily streamflow | Water Survey of Canada — HYDAT |
-| Station | Don River at Todmorden (02HC024), 1961–2023 |
-| Historical loss events | IBC, Canadian Disaster Database |
+This project was developed independently as a self-directed research 
+project outside of coursework. AI tools were used for coding assistance 
+and document formatting. All statistical reasoning, modeling decisions, 
+and physical justifications are my own — developed through independent 
+research and a lot of trial and error on paper.
 
 ---
 
