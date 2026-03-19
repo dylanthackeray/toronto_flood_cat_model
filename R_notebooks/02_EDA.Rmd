@@ -1,0 +1,48 @@
+---
+title: "EDA — Don River Streamflow"
+author: "Dylan"
+date: "`r Sys.Date()`"
+output: html_document
+---
+
+## 1. Load Data
+
+your code chunk here
+
+## 2. Data Quality Checks
+
+your code chunk here
+
+## 3. Time Series
+
+your code chunk here
+
+## 4. Distribution
+
+your code chunk here
+
+## 5. Seasonality
+
+your code chunk here
+
+## 6. Key Findings
+
+written summary here
+```
+
+---
+
+## How To Connect To GitHub
+
+This is a one time setup then it's automatic.
+
+---
+
+### Option 1: Through RStudio (Easiest)
+```
+1. In RStudio: Tools → Version Control → Project Setup
+2. Select Git
+3. Restart RStudio
+4. You'll see a Git tab in the top right pane
+```
+
