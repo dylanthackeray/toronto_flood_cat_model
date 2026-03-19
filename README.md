@@ -21,28 +21,17 @@ throughout. It is a work in progress.
 ## How It Works
 
 The model separates flood risk into two questions:
-- **How often do floods happen?** → Poisson(λ) frequency model
+- **How often do floods happen?** → Poisson(λ) frequency model  
 - **How bad are they?** → GPD(σ, ξ) severity model
 
 These are combined through a Monte Carlo engine that simulates 
 10,000 synthetic years to produce an Annual Exceedance Probability 
 (AEP) curve.
 
-The framework is Bayesian hierarchical — parameters are treated as 
-random variables with prior distributions rather than fixed point 
-estimates, so uncertainty is carried through to the final output.
+For full technical detail and my story on statistical choices, prior construction, 
+threshold selection, and physical justifications see:
 
-Key statistical choices:
-- Threshold `u` selected via Bayesian grid search with Mean Residual 
-  Life diagnostics
-- Priors constructed via ESS-scaled Method of Moments to prevent 
-  double dipping:
-```
-α_prior = ESS_prior / 2
-β_prior = ESS_prior / (2 * X̄)
-ESS_prior = (w / 1-w) × n_events, w = 0.05
-```
-
+→ [Statistical Methodology](METHODOLOGY.md)
 ---
 
 ## Data
