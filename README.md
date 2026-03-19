@@ -77,7 +77,7 @@ download_hydat()
 
 ## Current Status
 
-- [ ] Data collection and cleaning
+- Data collection and cleaning ✅
 - [ ] EDA
 - [ ] Threshold selection
 - [ ] Frequency model
