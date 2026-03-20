@@ -1,5 +1,5 @@
 ---
-title: "EDA - Don River Streamflow"
+title: "EDA - Don River"
 author: "Dylan"
 date: "`r Sys.Date()`"
 output: html_document
@@ -8,6 +8,41 @@ output: html_document
 ```{r setup, include=FALSE}
 knitr::opts_chunk$set(echo = TRUE, warning = FALSE, message = FALSE)
 ```
+## Overview
+
+This notebook explores the clean daily streamflow record for the Don 
+River at Todmorden (Station 02HC024) covering 1961 to 2023. The 
+goal is not to build anything yet, it is to understand what 
+the data looks like, identify any quality issues, and connect 
+observations directly to the modeling decisions made in later 
+notebooks.
+
+The analysis moves through four questions:
+
+1. **Is the data clean and complete?**
+missing values, quality flags, incomplete years, duplicates, and extreme values are all checked before any analysis begins
+
+2. **What does the distribution look like?** 
+the shape of the flow distribution directly determines which statistical model is appropriate for severity
+
+3. **Are there seasonal patterns?**
+flood frequency and severity vary by season, which has implications for the stationarity assumption in Version 1
+
+4. **Is the series stationary?** 
+the annual maximum trend and autocorrelation structure reveal whether the data supports a stationary model or motivates a time-varying extension
+
+**Key outputs from this notebook:**
+
+- Confirmation that the data is suitable for modeling
+- Visual and statistical evidence supporting GPD for severity
+- Visual and statistical evidence supporting Poisson for frequency
+- Empirical justification for the 3 day declustering criterion
+- Documented limitations of the stationarity assumption
+
+All modeling decisions referenced here are fully justified in 
+[METHODOLOGY.md](https://github.com/dylanthackeray/toronto_flood_cat_model/blob/main/METHODOLOGY.md). 
+
+---
 
 ## 1. Load Data
 ```{r}
@@ -17,6 +52,8 @@ library(here)
 
 flow_data <- read_csv(here::here("data", "clean", "02HC024_clean.csv"))
 ```
+
+---
 
 ## 2. Data Quality Checks
 
@@ -100,7 +137,7 @@ flow_data %>%
     p99_flow    = round(quantile(flow, 0.99, na.rm = TRUE), 2)
   )
 ```
-
+---
 
 ## 3. Distribution
 ```{r}
@@ -118,6 +155,7 @@ ggplot(flow_data, aes(x = flow)) +
     y        = "Density"
   )
 ```
+---
 
 ## 4a. Seasonality by Month
 ```{r}
@@ -164,6 +202,7 @@ flow_data %>%
   )
 ```
 
+---
 
 ## 5. Annual Maximum Trend
 ```{r}
@@ -181,6 +220,8 @@ flow_data %>%
     y        = "Annual Max Flow (m³/s)"
   )
 ```
+
+---
 
 ## 6. Autocorrelation
 ```{r}
@@ -205,6 +246,8 @@ data.frame(
 ```
 
 High autocorrelation at short lags confirms that consecutive days of elevated flow are not independent, a single storm event produces several correlated days of high flow. This directly motivates the declustering step in the next notebook, where a minimum separation of 3 days between events is used to ensure independence before fitting the Poisson frequency model.
+
+---
 
 ## 7. Key Findings
 
