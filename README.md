@@ -67,14 +67,15 @@ download_hydat()
 
 ## Current Status
 
-[ ✅ ] Data collection and cleaning
-[ ✅ ] EDA
-[ ] Threshold selection
-[ ] Frequency model
-[ ] Severity model
-[ ] Loss function calibration
-[ ] Monte Carlo simulation
-[ ] Results and visualizations
+- [ ✅ ] Data collection and cleaning
+- [ ✅ ] EDA
+- [ ✅ ] Threshold selection (physical water level)
+- [ ] Threshold selection (statistical GPD)
+- [ ] Frequency model
+- [ ] Severity model
+- [ ] Loss function calibration
+- [ ] Monte Carlo simulation
+- [ ] Results and visualizations
 
 ---
 
