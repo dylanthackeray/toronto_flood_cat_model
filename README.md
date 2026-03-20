@@ -67,14 +67,14 @@ download_hydat()
 
 ## Current Status
 
-- [ ✅ ] Data collection and cleaning
-- [ ✅ ] EDA
-- [ ] Threshold selection
-- [ ] Frequency model
-- [ ] Severity model
-- [ ] Loss function calibration
-- [ ] Monte Carlo simulation
-- [ ] Results and visualizations
+[ ✅ ] Data collection and cleaning
+[ ✅ ] EDA
+[ ] Threshold selection
+[ ] Frequency model
+[ ] Severity model
+[ ] Loss function calibration
+[ ] Monte Carlo simulation
+[ ] Results and visualizations
 
 ---
 
@@ -93,7 +93,7 @@ This is V1 — a stationary baseline model. Known limitations:
 
 ## License
 
-This project is licensed under the MIT License. See the LICENSE file for details.
+This project is licensed under the MIT License. See the [LICENSE](LICENSE) file for details.
 
 ---
 ## Creator
