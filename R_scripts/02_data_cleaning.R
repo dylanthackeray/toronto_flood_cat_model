@@ -15,9 +15,9 @@ cat("Project root:", here(), "\n")
 # --- Parameters ---
 STATION_ID <- "02HC024"
 
-RAW_FILE   <- here("data", "raw", paste(STATION_ID, "_raw.csv"))
+RAW_FILE   <- here("data", "raw", paste0(STATION_ID, "_raw.csv"))
 CLEAN_DIR  <- here("data", "clean")
-CLEAN_FILE <- here("data", "clean", paste(STATION_ID, "_clean.csv"))
+CLEAN_FILE <- here("data", "clean", paste0(STATION_ID,"_clean.csv"))
 
 # --- Create clean directory ---
 if (!dir.exists(CLEAN_DIR)) {
@@ -86,10 +86,10 @@ clean_flow <- clean_flow %>%
 # -- add flagging column for symbol_flag (useful for capturing all data vs most precise data) 
 clean_flow <- clean_flow %>%
   mutate(quality = case_when(
-    symbol_flag == "A" ~ "measured",
+    symbol_flag == "A" ~ "partial_day",
     symbol_flag == "E" ~ "estimated",
-    symbol_flag == "B" ~ "flagged",
-    TRUE ~ "unspecified"
+    symbol_flag == "B" ~ "ice_conditions",
+    TRUE ~ "measured" # no conditions affecting it or machinery malfunctions. 
   )) # this is the general-clean data set, one can filter / select however they like to make it more specific to what analysis they want to do. *eg: I currently limiting myself to stationarity analysis so I will not be using day, month, hydrological_year columns* 
 
 

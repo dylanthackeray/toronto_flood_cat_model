@@ -16,7 +16,7 @@ END_DATE   <- Sys.Date()
 
 # --- Define paths ---
 DATA_DIR <- here("data", "raw")
-FILE_PATH <- file.path(DATA_DIR, paste(STATION_ID, "_raw.csv"))
+FILE_PATH <- file.path(DATA_DIR, paste0(STATION_ID, "_raw.csv"))
 
 # --- Create directories ---
 if(!dir.exists(DATA_DIR)) dir.create(DATA_DIR, recursive = TRUE)
