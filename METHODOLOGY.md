@@ -32,10 +32,9 @@ more it felt wrong.
 Flooding is a rare extreme event. The whole point of this model is 
 to say something meaningful about events that barely appear in 60 
 years of historical data. With that little information, a point 
-estimate — a single number for lambda or sigma — felt falsely 
-precise. I wasn't uncertain about floods in a way that could be 
-captured by a confidence interval around a fixed estimate. I was 
-uncertain about the parameters themselves.
+estimate felt falsely precise. I wasn't uncertain about floods in 
+a way that could be captured by a confidence interval around a fixed 
+estimate. I was uncertain about the parameters themselves.
 
 That's when I realized the uncertainty needed to be baked into the 
 model itself, not tacked on afterward. A Bayesian framework treats 
@@ -51,6 +50,7 @@ didn't for this problem.
 
 ## Data
 
+### Primary Data Source
 **Source:** Water Survey of Canada — HYDAT database
 **Station:** Don River at Todmorden (02HC024)
 **Period:** 1961–2023 (~22,000 daily observations)
@@ -66,10 +66,40 @@ didn't for this problem.
 | Variable | Definition | Used for |
 |---|---|---|
 | Q_peak | Maximum flow during independent event | Severity model |
-| D | Duration above threshold (days) | Event characterization |
-| V | Volume above threshold (sum of excess flow) | Event characterization |
+| duration | Duration above threshold (days) | Event characterization |
+| volume_excess | Volume above threshold (sum of excess flow) | Event characterization |
 | n_events | Annual count of independent events | Frequency model |
-| Exceedances | Q_peak - u for each event | GPD fitting |
+| excess_peak | Q_peak - u for each event | GPD fitting |
+
+---
+
+### Secondary Data Source
+**Source:** Environment Canada Water Office — Historical Data Portal
+**Link:** [historical_hydrology_data](https://wateroffice.ec.gc.ca/mainmenu/historical_data_index_e.html)
+**Station:** Don River at Todmorden (02HC024)
+**Period:** 2002–2023 (water level data only)
+**Variables:** Daily mean discharge (m³/s) and daily mean water level (m, local gauge datum)
+
+**Why this source:**
+The HYDAT database does not include water level observations for this station. The Environment Canada historical download provides paired discharge and water level observations from 2002 onward, enabling construction of a rating curve — the relationship between water level and discharge. This rating curve was used during physical threshold selection to understand what discharge values correspond to elevated water levels.
+
+**Known limitation:** Water level data only covers 2002 onward and never reaches the estimated flood warning threshold of 14.0m (local datum) during the recording period. The rating curve therefore cannot be validated against observed flood conditions. Full details are documented in notebook 02_physical_threshold.Rmd.
+
+**Variables used:**
+
+| Variable | Definition | Used for |
+|---|---|---|
+| water_level_m | Daily mean water level (m, local datum) | Rating curve construction |
+| discharge_m3s | Daily mean discharge (m³/s) | Rating curve construction |
+
+---
+
+### Physical Threshold
+**u_physical = 40 m³/s**
+
+The physical flood threshold was determined through three independent empirical approaches applied directly to the discharge record: log-linear extrapolation from the rating curve (discarded — physically impossible result), cross-referencing known historical flood dates against HYDAT discharge records, and flow percentile analysis. The final value of 40 m³/s was selected because it sits above the p99.9 of 52.5 m³/s, the mean Q_peak of documented flood events in the rating curve is 53.4 m³/s, and it retains 54 independent events after declustering; which is above the practical minimum of 50 for GPD fitting. Full justification is in notebook [02_physical_threshold_selection.Rmd](02_physical_threshold_selection.Rmd).
+
+**Note:** An initial estimate of 30 m³/s was revised to 40 m³/s after declustering revealed that events at 30 m³/s had a median duration of 1 day and a mean Q_peak of 42.2 m³/s -> consistent with elevated flow rather than genuine flooding.
 
 ---
 
