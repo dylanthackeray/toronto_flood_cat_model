@@ -2,6 +2,6 @@
 .Rhistory
 .RData
 .Ruserdata
-data/raw/
-data/clean/
+data/
 .DS_Store
+**/.DS_Store

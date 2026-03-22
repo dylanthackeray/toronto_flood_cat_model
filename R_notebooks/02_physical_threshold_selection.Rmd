@@ -8,6 +8,7 @@ output: html_document
 knitr::opts_chunk$set(echo = TRUE, warning = FALSE, message = FALSE)
 ```
 
+
 ## Overview
 
 This notebook documents how the physical flood threshold u_physical
@@ -226,9 +227,7 @@ recorded at the gauge reflects a combination of surface runoff and
 riverine flow that cannot be separated at daily resolution. This
 event is included for completeness and as an upper bound reference
 but is not used as a primary anchor for u_physical given the
-fluvial focus of this model. The threshold of 30 m³/s is derived
-primarily from the percentile analysis and sensitivity table in
-Sections 7 and 8.
+fluvial focus of this model. The threshold is derived primarily from the percentile analysis and sensitivity table in Sections 7 and 8.
 
 ---
 
@@ -257,8 +256,8 @@ ggplot(p_flow_tbl, aes(x = percentile, y = flow_m3s, group = 1)) +
   geom_hline(yintercept = 30, colour = "red",
              linetype = "dashed") +
   annotate("text", x = 1.2, y = 32,
-           label = "u_physical = 30 m³/s",
-           colour = "red", size = 3, hjust = 0) +
+         label = "Initial estimate: 30 m³/s",
+         colour = "red", size = 3, hjust = 0) +
   theme_minimal() +
   labs(
     title    = "Flow Percentiles — Don River at Todmorden",
@@ -311,7 +310,7 @@ events for GPD fitting, and consistent with the onset of
 flood-producing conditions observed in the rating curve and
 historical event record.
 
-### Final Decision
+### First Decision
 ```{r}
 U_PHYSICAL <- 30
 ```
@@ -337,23 +336,117 @@ threshold crossings, not proper declustering. The full
 declustering algorithm using a 3 day minimum separation is
 implemented in notebook 03_event_extraction.Rmd.
 
----
+
+### IMPORTANT CHANGE On u_physical After Declustering Analysis
+
+After implementing the declustering function the following event
+characteristics were observed at u_physical = 30 m³/s:
+
+```{r}
+
+invisible(source(here::here("R_functions", "declustering.R"), echo = FALSE))
+
+flood_events_30 <- decluster_events(
+  flow_data            = flow_data,
+  threshold            = 30,
+  min_days_independent = 3
+)
+
+flood_events_30 %>%
+  summarise(
+    n_events        = n(),
+    mean_duration   = mean(duration),
+    median_duration = median(duration),
+    max_duration    = max(duration)
+  )
+
+flood_events_30 %>%
+  arrange(start_date) %>%
+  mutate(days_since_last = as.numeric(start_date - lag(end_date))) %>%
+  summarise(
+    mean_gap    = mean(days_since_last, na.rm = TRUE),
+    median_gap  = median(days_since_last, na.rm = TRUE),
+    min_gap     = min(days_since_last, na.rm = TRUE),
+    pct_under_3 = mean(days_since_last < 3, na.rm = TRUE) * 100
+  )
+```
+
+The median event duration of 1 day confirms that the Don River
+responds and recovers rapidly at 30 m³/s, consistent with a
+small urban catchment with fast drainage. The minimum inter-event
+gap of 4 days and zero events separated by fewer than 3 days
+confirms all 129 events are independent. The 3 day
+separation criterion was therefore conservative for this dataset as natural event separation was already occurring.
+
+However the 1 day median duration brings a physical concern.
+A single day spike barely above 30 m³/s is unlikely to represent
+a damaging flood event. The rating curve analysis in
+Section 4 showed all documented flood events correspond to daily
+means of 40 to 80 m³/s. Events between 30 and 40 m³/s likely
+represent elevated flow conditions rather than active flooding.
+
+Comparing event characteristics across candidate thresholds:
+```{r}
+threshold_comparison <- tibble(threshold = c(30, 35, 40, 45, 50)) %>%
+  mutate(
+    n_events = map_int(threshold, \(u) {
+      decluster_events(flow_data, u, 3) %>% nrow()
+    }),
+    median_duration = map_int(threshold, \(u) {
+      events <- decluster_events(flow_data, u, 3)
+      as.integer(median(events$duration))
+    }),
+    mean_Q_peak = map_dbl(threshold, \(u) {
+      events <- decluster_events(flow_data, u, 3)
+      round(mean(events$Q_peak), 1)
+    })
+  )
+
+threshold_comparison
+```
+
+Raising u_physical to 40 m³/s produces 54 independent events
+with a higher mean Q_peak of 53.4 m³/s, better aligned with
+the documented flood damage range of 40 to 80 m³/s observed
+in the rating curve. The median event duration remains 1 day
+across all candidate thresholds, a consistent characteristic
+of the Don River as a fast responding urban catchment rather
+than a product of the threshold choice.
+
+54 events sits at the boundary of the practical minimum of 50
+exceedances recommended by Coles (2001) for reliable GPD parameter estimation. The Bayesian framework partially relaxes this requirement through prior
+regularization, but 40 m³/s is the highest threshold that
+remains statistically workable. Raising to 45 m³/s drops event
+count to 35, below the minimum regardless of framework.
+
+u_physical is revised from 30 to 40 m³/s on **physical grounds**.
+At **30 m³/s** the mean Q_peak of 42.2 m³/s and **single day median duration suggest many events represent brief elevated flow rather than genuine flooding**. At **40 m³/s** the mean Q_peak of 53.4 m³/s is consistent with the onset of documented flood
+damage and the threshold sits **above the p99.9 of 52.5 m³/s**,
+capturing only genuinely extreme events.
 
 ## 9. Save u_physical
 ```{r}
-saveRDS(U_PHYSICAL, here::here("data", "clean", "u_physical.rds"))
+U_PHYSICAL <- 40
+
+flood_events <- decluster_events(
+  flow_data            = flow_data,
+  threshold            = U_PHYSICAL,
+  min_days_independent = 3
+)
+
+saveRDS(U_PHYSICAL,
+        here::here("data", "clean", "u_physical.rds"))
+
+write_csv(flood_events,
+          here::here("data", "clean", "flood_events.csv"))
 ```
 
-u_physical = `r U_PHYSICAL` m³/s has been saved to
-`data/clean/u_physical.rds` for use in all downstream notebooks.
+u_physical updated to `r U_PHYSICAL` m³/s and saved. The flood
+events table has been updated accordingly with
+`r nrow(flood_events)` independent events.
 
 ---
 
 ## Summary
 
-| Decision | Value | Justification |
-|---|---|---|
-| u_physical | 30 m³/s | Above p99, consistent with flood events, sufficient event count |
-| Reference | Daily mean discharge | HYDAT resolution limitation |
-| Limitation | True peaks are higher | Daily mean understates instantaneous peaks |
-| Next step | Bayesian MRL grid search | Finds u_statistical above u_physical |
+| u_physical | 40 m³/s | Above p99.9, mean Q_peak consistent with documented flood damage, 54 independent events above GPD minimum |

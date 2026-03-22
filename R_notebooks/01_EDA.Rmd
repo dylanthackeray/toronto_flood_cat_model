@@ -223,7 +223,7 @@ flow_data %>%
 
 ---
 
-## 6. Autocorrelation
+## 6a. Autocorrelation
 ```{r}
 acf_values <- acf(flow_data$flow, lag.max = 15, plot = FALSE)
 
@@ -246,6 +246,15 @@ data.frame(
 ```
 
 High autocorrelation at short lags confirms that consecutive days of elevated flow are not independent, a single storm event produces several correlated days of high flow. This directly motivates the declustering step in the next notebook, where a minimum separation of 3 days between events is used to ensure independence before fitting the Poisson frequency model.
+
+### 6b. Save Minimum Separation of 3 Days
+```{r}
+min_days_independent <- 3
+
+saveRDS(min_days_independent, here::here("data", "clean", "min_days_independent.rds"))
+
+```
+
 
 ---
 
