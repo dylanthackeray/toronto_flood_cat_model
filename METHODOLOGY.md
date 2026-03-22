@@ -83,7 +83,7 @@ didn't for this problem.
 **Why this source:**
 The HYDAT database does not include water level observations for this station. The Environment Canada historical download provides paired discharge and water level observations from 2002 onward, enabling construction of a rating curve — the relationship between water level and discharge. This rating curve was used during physical threshold selection to understand what discharge values correspond to elevated water levels.
 
-**Known limitation:** Water level data only covers 2002 onward and never reaches the estimated flood warning threshold of 14.0m (local datum) during the recording period. The rating curve therefore cannot be validated against observed flood conditions. Full details are documented in notebook 02_physical_threshold.Rmd.
+**Known limitation:** Water level data only covers 2002 onward and never reaches the estimated flood warning threshold of 14.0m (local datum) during the recording period. The rating curve therefore cannot be validated against observed flood conditions. Full details are documented in notebook [02_physical_threshold_selection.Rmd](02_physical_threshold_selection.Rmd).
 
 **Variables used:**
 
