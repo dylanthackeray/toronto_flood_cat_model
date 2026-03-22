@@ -83,7 +83,7 @@ didn't for this problem.
 **Why this source:**
 The HYDAT database does not include water level observations for this station. The Environment Canada historical download provides paired discharge and water level observations from 2002 onward, enabling construction of a rating curve — the relationship between water level and discharge. This rating curve was used during physical threshold selection to understand what discharge values correspond to elevated water levels.
 
-**Known limitation:** Water level data only covers 2002 onward and never reaches the estimated flood warning threshold of 14.0m (local datum) during the recording period. The rating curve therefore cannot be validated against observed flood conditions. Full details are documented in notebook [02_physical_threshold_selection.Rmd](02_physical_threshold_selection.Rmd).
+**Known limitation:** Water level data only covers 2002 onward and never reaches the estimated flood warning threshold of 14.0m (local datum) during the recording period. The rating curve therefore cannot be validated against observed flood conditions. Full details are documented in notebook [02_physical_threshold_selection.Rmd](R_notebooks/02_physical_threshold_selection.Rmd).
 
 **Variables used:**
 
@@ -97,7 +97,7 @@ The HYDAT database does not include water level observations for this station. T
 ### Physical Threshold
 **u_physical = 40 m³/s**
 
-The physical flood threshold was determined through three independent empirical approaches applied directly to the discharge record: log-linear extrapolation from the rating curve (discarded — physically impossible result), cross-referencing known historical flood dates against HYDAT discharge records, and flow percentile analysis. The final value of 40 m³/s was selected because it sits above the p99.9 of 52.5 m³/s, the mean Q_peak of documented flood events in the rating curve is 53.4 m³/s, and it retains 54 independent events after declustering; which is above the practical minimum of 50 for GPD fitting. Full justification is in notebook [02_physical_threshold_selection.Rmd](02_physical_threshold_selection.Rmd).
+The physical flood threshold was determined through three independent empirical approaches applied directly to the discharge record: log-linear extrapolation from the rating curve (discarded — physically impossible result), cross-referencing known historical flood dates against HYDAT discharge records, and flow percentile analysis. The final value of 40 m³/s was selected because it sits above the p99.9 of 52.5 m³/s, the mean Q_peak of documented flood events in the rating curve is 53.4 m³/s, and it retains 54 independent events after declustering; which is above the practical minimum of 50 for GPD fitting. Full justification is in notebook [02_physical_threshold_selection.Rmd](R_notebooks/02_physical_threshold_selection.Rmd).
 
 **Note:** An initial estimate of 30 m³/s was revised to 40 m³/s after declustering revealed that events at 30 m³/s had a median duration of 1 day and a mean Q_peak of 42.2 m³/s -> consistent with elevated flow rather than genuine flooding.
 
