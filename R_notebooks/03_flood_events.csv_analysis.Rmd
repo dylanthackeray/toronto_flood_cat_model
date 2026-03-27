@@ -1,0 +1,161 @@
+---
+title: "flood_events.csv Analysis - Don River"
+author: "Dylan"
+date: "`r Sys.Date()`"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE, warning = FALSE, message = FALSE)
+```
+
+
+# Overview
+
+This document provides an analysis on the `flood_events.csv` dataset. The goal is to evaluate the performance of the declustering procedure and assess whether the resulting event structure is suitable for a Peaks-Over-Threshold (POT) modeling framework.
+
+The analysis focuses on verifying key assumptions required for subsequent Bayesian flood risk modeling, including event independence, exceedance structure, and the identifiability of variables such as `excess_peak`, `volume_excess`, and `duration`.
+
+Based on this analysis, this document concludes by determining whether any modifications are required to the current modeling approach, particularly with respect to a Poisson–GPD specification. 
+
+---
+
+# Import flood_events.csv + Examine
+
+```{r}
+library(tidyverse)
+library(here)
+
+flood_events <- read_csv(here::here("data", "clean", "flood_events.csv"))
+
+glimpse(flood_events)
+```
+The volume_excess and excess_peak column look very similar... Mathematically, I defined:  
+
+`excess_peak` = max(X_i - u_physical | X_i > u_physical)
+
+`volume_excess` = sum(X_i - u_physical)
+
+where X_i represents daily mean discharge (m^3/s) from HYDAT, and u_physical is a fixed threshold (m^3/s) used for Peaks-Over-Threshold selection. 
+
+---
+
+# Summarize the excess_peak and volume_excess variables
+```{r}
+table(flood_events$duration)
+
+summary(flood_events$duration)
+```
+This shows that there are **49 days** that have a **one flood event** and **5 days** that have **two flood events.**
+
+
+This concentration of short durations suggests that declustering has largely isolated individual exceedance events rather than extended multi-day flood systems.
+
+
+I could come up with 3 reasonable explanations for this:
+
+- my min_days_independent variable is too high (its 3 days minimum) 
+
+- the HYDAT daily mean flow data is causing a 1-2 isolated spikes above threshold.
+
+- the Don River hydro-graph shape typically has a sharp rise, sharp fall, and short duration -> multi day exceedances are rare
+
+
+Overall this implies that flood events in this dataset behave approximately like independent exceedance observations rather than extended clustered storm systems.
+
+
+This is consistent with a Poisson–GPD Peaks-Over-Threshold framework, where:
+
+- `frequency` = number of exceedance events
+- `severity` = magnitude of exceedance above threshold
+
+
+However I will still statistically make sure this choice is sound. 
+
+---
+
+# Statistical Checks
+
+## Correlation between excess_peaks and volume_excess
+
+```{r}
+
+cor(flood_events$excess_peak,
+    flood_events$volume_excess,
+    use = "complete.obs")
+```
+The high correlation suggests that both metrics are monotonic transformations of the same exceedance structure rather than independent hydrological quantities.
+
+## Flood Event Duration Breakdown
+```{r}
+
+ggplot(flood_events, aes(x = duration)) +
+  geom_histogram(binwidth = 1) +
+  labs(
+    title = "Flood Event Duration Distribution",
+    x = "Duration (days)",
+    y = "Count"
+  )
+```
+
+This histogram confirms that most flood events are short-lived (1–2 days), supporting the assumption that declustering has successfully separated individual exceedance events.
+
+## Exceedence Distribution POT Check
+```{r}
+
+ggplot(flood_events, aes(x = Q_peak - 40)) +
+  geom_histogram(bins = 20) +
+  labs(
+    title = "Exceedance Distribution",
+    x = "Excess over threshold (m^3/s)",
+    y = "Frequency"
+  )
+
+```
+
+The distribution of exceedances above the threshold exhibits a positively skewed shape consistent with heavy-tailed behavior, supporting the choice of GPD.
+
+## Peak Flow Distribution with Threshold
+```{r}
+
+ggplot(flood_events, aes(x = Q_peak)) +
+  geom_histogram(bins = 30) +
+  geom_vline(xintercept = 40, linetype = "dashed") +
+  labs(
+    title = "Peak Flow Distribution with Threshold",
+    x = "Peak flow (m^3/s)",
+    y = "Frequency"
+  )
+```
+
+The chosen threshold appears to lie in the upper tail of the distribution, capturing extreme values while retaining a sufficient number of exceedances for stable inference.
+
+---
+
+# Conclusion
+
+The declustered dataset shows a strong Peaks-Over-Threshold (POT) structure, with most events having a duration of 1–2 days. This suggests that, at daily resolution, flood events behave more like independent threshold exceedances than extended hydrological storm systems.
+
+The high correlation between `volume_excess` and `excess_peak`, combined with the short event durations, indicates that compound event structure is not identifiable at this temporal resolution. Both metrics appear to be redundant representations of the same exceedance process rather than distinct hydrological features.
+
+Overall, the dataset is consistent with a Peaks-Over-Threshold framework in which exceedances above a fixed threshold occur as a Poisson process in time, with exceedance magnitudes following a Generalized Pareto Distribution (GPD).
+
+---
+
+# What this means for my model
+
+These results motivate a simplified Poisson–GPD modeling framework for flood risk inference.
+
+The model will consist of two components:
+
+1. Event frequency  
+Flood events will be modeled as a Poisson process. The rate parameter λ represents the expected number of exceedance events per unit time (e.g. per year).
+
+2. Event magnitude  
+Exceedances above the threshold will be modeled using a Generalized Pareto Distribution (GPD), parameterized by a scale parameter (σ) and shape parameter (ξ).
+
+Given the correlation observed between `excess_peak` and `volume_excess`, only `excess_peak` will be retained for statistical inference, as it fully captures exceedance magnitude under the current declustering and temporal resolution.
+
+Event duration will not be explicitly modeled in the baseline framework, as it does not contribute additional identifiable information beyond the declustered exceedance representation.
+
+This suggests that a Poisson–GPD model fits the data well, matches its underlying structure, and works naturally within a hierarchical Bayesian framework.

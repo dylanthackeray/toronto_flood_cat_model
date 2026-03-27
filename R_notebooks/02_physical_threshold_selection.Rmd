@@ -304,8 +304,9 @@ sensitivity <- tibble(threshold = c(20, 25, 30, 35, 40)) %>%
 sensitivity
 ```
 
-A threshold of 30 m³/s sits in the sweet spot: high enough to
-exclude normal elevated flow, low enough to retain sufficient
+A threshold of 30 m³/s sits in the sweet spot - **original thought**... 
+
+high enough to exclude normal elevated flow, low enough to retain sufficient
 events for GPD fitting, and consistent with the onset of
 flood-producing conditions observed in the rating curve and
 historical event record.

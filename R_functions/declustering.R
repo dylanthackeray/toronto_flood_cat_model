@@ -134,10 +134,10 @@ decluster_events <- function(flow_data,
         month(min(event_dates)) %in% c(9, 10, 11) ~ "Fall",
         TRUE                                       ~ "Winter"
       ),
-      Q_peak      = max(event_flows),
-      D           = length(event_flows),
-      V           = sum(excess),
-      excess_peak = max(excess)
+      Q_peak           = max(event_flows),
+      duration         = length(event_flows),
+      volume_excess    = sum(excess),
+      excess_peak      = max(excess)
     )
   }
   
