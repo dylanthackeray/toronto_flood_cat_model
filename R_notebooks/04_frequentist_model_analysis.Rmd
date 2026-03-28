@@ -1,0 +1,271 @@
+---
+title: "Frequentist Model Analysis - Don River"
+author: "Dylan"
+date: "`r Sys.Date()`"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE, warning = FALSE, message = FALSE)
+```
+
+# Overview
+
+This notebook evaluates and interprets the results of the frequentist Poisson–GPD (Peak Over Threshold) model applied to flood event data from the Don River system. The objective is to assess model adequacy for both event frequency and extreme event severity within a hydrological extremes framework.
+
+The analysis focuses on diagnostic evaluation, including distributional fit, goodness-of-fit testing, dispersion properties, and tail behavior assessment. These results are then used to critically evaluate the suitability of the frequentist framework and to motivate an alternative Bayesian framework that accounts for parameter uncertainty in extreme flood risk estimation.
+
+For details on model implementation and fitting procedures, refer to `04_fit_model.R` in the `R_scripts` directory.
+
+---
+
+# Load Libraries + Objects + Data
+```{r}
+
+library(tidyverse)
+library(here)
+library(evd)
+
+lambda_hat <- readRDS(here::here("data", "model", "frequentist_model_fits", "lambda_hat.rds"))
+gpd_fit    <- readRDS(here::here("data", "model", "frequentist_model_fits", "gpd_fit.rds"))
+
+severity_df <- read_csv(here::here("data", "model", "severity_data.csv"))
+freq_df     <- read_csv(here::here("data", "model", "frequency_data.csv"))
+
+exceedances <- severity_df$exceedance
+```
+
+---
+
+# Frequency Model (Poisson)
+```{r}
+
+k_vals <- 0:max(freq_df$n_events)
+
+empirical_probs <- table(freq_df$n_events) / nrow(freq_df)
+
+empirical_vec <- sapply(k_vals, function(k) {
+  ifelse(as.character(k) %in% names(empirical_probs),
+         empirical_probs[[as.character(k)]],
+         0)
+})
+
+poisson_probs <- dpois(k_vals, lambda_hat)
+
+compare_df <- tibble(
+  k = k_vals,
+  empirical = empirical_vec,
+  poisson = poisson_probs
+)
+
+compare_long <- compare_df %>%
+  pivot_longer(cols = c(empirical, poisson),
+               names_to = "type",
+               values_to = "probability")
+
+ggplot(compare_long, aes(x = k, y = probability, fill = type)) +
+  geom_col(position = "dodge") +
+  labs(
+    title = "Empirical vs Poisson Distribution",
+    x = "Number of Events",
+    y = "Probability",
+    fill = "Type"
+  )
+```
+
+## Poisson Model Justification
+
+### Chi-Squared Goodness of Fit Test
+```{r}
+
+lambda_hat
+
+# Observed counts
+obs_counts <- table(freq_df$n_events)
+
+# Possible k values
+k_vals <- as.numeric(names(obs_counts))
+
+# Expected probabilities from Poisson
+expected_probs <- dpois(k_vals, lambda_hat)
+
+# Expected counts
+expected_counts <- expected_probs * nrow(freq_df)
+
+# Combine into dataframe
+gof_df <- tibble(
+  k = k_vals,
+  observed = as.numeric(obs_counts),
+  expected = expected_counts
+)
+
+gof_df
+
+# Perform the test
+chisq_test <- chisq.test(
+  x = gof_df$observed,
+  p = gof_df$expected / sum(gof_df$expected)
+)
+
+chisq_test
+
+```
+
+The Chi-squared goodness-of-fit test yields a p-value of 
+`r round(chisq_test$p.value, 3)`, indicating no statistical evidence against the Poisson assumption for annual flood counts.
+
+Combined with the close agreement between the sample mean and variance, and the visual alignment between empirical and theoretical distributions, this supports the use of a Poisson process for modeling flood event frequency.
+
+### Dispersion Test
+```{r}
+
+mean_events <- mean(freq_df$n_events)
+var_events  <- var(freq_df$n_events)
+
+mean_events
+var_events
+```
+A key property of the Poisson distribution is that the mean equals the variance.
+
+The sample mean and variance of annual flood counts are:
+
+- Mean: `r round(mean_events, 3)`
+- Variance: `r round(var_events, 3)`
+
+The variance is substantially lower than the mean, with a difference of approximately `r round(mean_events - var_events, 3)`. This indicates mild underdispersion relative to the Poisson assumption.
+
+Underdispersion can arise from the declustering procedure and the relatively regular occurrence of events in time. While this suggests that the Poisson model may slightly overestimate variability, the Chi-squared goodness-of-fit test and distributional comparisons indicate that the Poisson model still provides a reasonable approximation for event frequency at this stage.
+
+Given the limited sample size and the role of this model as a baseline specification, the Poisson assumption is retained, with the understanding that more flexible alternatives may be explored in future extensions.
+
+---
+
+# Severity Model (GPD)
+```{r}
+
+gpd_fit$estimate
+gpd_fit$std.err
+
+x_vals <- seq(min(exceedances), max(exceedances), length.out = 200)
+
+gpd_density <- dgpd(
+  x_vals,
+  loc = 0,
+  scale = gpd_fit$estimate["scale"],
+  shape = gpd_fit$estimate["shape"]
+)
+
+ggplot() +
+  geom_histogram(aes(x = exceedances, y = after_stat(density)),
+                 bins = 20, alpha = 0.5) +
+  geom_line(aes(x = x_vals, y = gpd_density),
+            linewidth = 1) +
+  labs(
+    title = "GPD Fit to Exceedances",
+    x = "Exceedance (Q_peak - u)",
+    y = "Density"
+  )
+```
+
+The fitted GPD density captures the overall shape of the exceedance distribution, particularly in the central region.
+
+However, the upper tail is supported by a small amount of observations, limiting the ability to precisely estimate extreme behavior.
+
+## QQ Plot of GPD
+```{r}
+
+# Theoretical quantiles
+p <- ppoints(length(exceedances))
+
+theoretical <- qgpd(
+  p,
+  loc = 0,
+  scale = gpd_fit$estimate["scale"],
+  shape = gpd_fit$estimate["shape"]
+)
+
+qq_df <- tibble(
+  empirical = sort(exceedances),
+  theoretical = theoretical
+)
+
+ggplot(qq_df, aes(x = theoretical, y = empirical)) +
+  geom_point() +
+  geom_abline(slope = 1, intercept = 0, linetype = "dashed") +
+  labs(
+    title = "GPD QQ Plot",
+    x = "Theoretical Quantiles",
+    y = "Empirical Quantiles"
+  )
+```
+
+The QQ plot indicates that the GPD provides a reasonable fit across most of the distribution, with small deviation in the mid-upper tail.
+
+These deviations are expected due to the limited number of extreme observations, which reduces the reliability of tail estimation.
+
+## Tail Behaviour Visual
+```{r}
+
+# Empirical survival function
+empirical_df <- tibble(x = exceedances) %>%
+  arrange(x) %>%
+  mutate(
+    ecdf = (row_number()) / n(),
+    survival = 1 - ecdf
+  )
+
+# Theoretical GPD survival
+x_vals <- seq(min(exceedances), max(exceedances), length.out = 200)
+
+gpd_survival <- 1 - pgpd(
+  x_vals,
+  loc = 0,
+  scale = gpd_fit$estimate["scale"],
+  shape = gpd_fit$estimate["shape"]
+)
+
+theoretical_df <- tibble(
+  x = x_vals,
+  survival = gpd_survival
+)
+
+# Plot both
+ggplot() +
+  geom_step(data = empirical_df,
+            aes(x = x, y = survival),
+            linewidth = 1) +
+  geom_line(data = theoretical_df,
+            aes(x = x, y = survival),
+            linewidth = 1, linetype = "dashed") +
+  scale_y_log10() +
+  labs(
+    title = "Empirical vs Theoretical Tail (Log Survival)",
+    x = "Exceedance",
+    y = "Survival Probability (log scale)"
+  )
+```
+
+The empirical survival function is compared against the fitted GPD survival function on a logarithmic scale to assess tail behavior.
+
+The model captures the general decay pattern of exceedances, with reasonable agreement in the central region. However, deviations in the upper tail are observed, reflecting the limited number of extreme observations and the resulting uncertainty in tail estimation.
+
+This reinforces the conclusion that while the GPD provides an appropriate structural model, the tail behavior is weakly identified and sensitive to parameter uncertainty.
+
+---
+
+# Interpretation
+
+The Poisson model provides a reasonable approximation for the frequency of flood events, despite evidence of under-dispersion where the sample variance is lower than the mean.
+
+The GPD fit captures the overall shape of the exceedance distribution, although uncertainty in the shape parameter (ξ) is substantial relative to its magnitude, as seen in the empirical vs theoretical survival function comparison in the upper tail.
+
+- **Note on ξ (shape parameter)**:
+
+  The estimated shape parameter (ξ ≈ `r round(gpd_fit$estimate["shape"], 3)`) is positive, indicating a weakly heavy-tailed distribution. However, its small magnitude suggests only mild tail heaviness, implying that while extreme flood events are possible, their probability decays relatively quickly.
+
+The relatively large standard error of ξ (compared to its estimate) indicates that tail behavior is weakly identified, reflecting limited information in the extreme observations.
+
+The QQ plot suggests that the model provides a reasonable fit in the central region, with some deviation in the upper tail due to limited extreme observations.
+
+Overall, while the frequentist model provides a coherent baseline specification, uncertainty in tail behavior motivates a transition to a Bayesian framework to properly quantify parameter uncertainty and its impact on extreme flood risk estimates.
+Overall, while the frequentist model provides a coherent baseline fit, the uncertainty in tail behavior motivates a transition to a Bayesian framework to properly quantify parameter uncertainty and its impact on extreme risk estimates.
