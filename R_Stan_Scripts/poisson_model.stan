@@ -14,5 +14,5 @@ model {
   lambda ~ gamma(2, 1);   // weak prior (I will change later)
 
   // Likelihood
-  N ~ poisson(lambda);
+  N ~ poisson(lambda);    // stan automatically computes the log prior and log likehood to obtain posterior shape
 }

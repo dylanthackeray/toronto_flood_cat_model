@@ -45,7 +45,7 @@ gpd_model     <- cmdstan_model("R_stan_Scripts/gpd_model.stan")
 # ------------------------------------------------------------
 
 fit_poisson <- poisson_model$sample(
-  data = poisson_data,
+  data = poisson_data, 
   chains = 4,
   iter_sampling = 2000,
   iter_warmup = 1000,
