@@ -165,6 +165,8 @@ above a sufficiently high threshold. Finding that threshold is the
 job of the grid search.
 
 ### Bayesian Grid Search With MRL Diagnostics
+#### Note: NOT implemented yet, will evaluate if necessary after V1 is completed. Chose u_statistical based on flow (m^3/s) percentiles. 
+#### To see justification go to [02_physical_threshold_selection.Rmd](R_notebooks/02_physical_threshold_selection.Rmd).
 
 Classical threshold selection eyeballs a Mean Residual Life plot 
 and picks where it looks linear. That felt too subjective for 
@@ -328,78 +330,6 @@ allow values down to -0.3, which implies a physical maximum of
 u + σ/0.3. With plausible values of u and σ for Don River this 
 gives a physically reasonable ceiling consistent with the 
 historical record.
-
----
-
-## Prior Construction
-
-Building priors was the part of this project I found hardest — 
-not technically, but conceptually. The challenge was finding the 
-balance between using what I knew and not imposing too much 
-structure on a model that should be driven by data.
-
-My first instinct was to just pick priors from the literature. 
-But I wanted something more grounded in the actual Don River 
-data I had.
-
-**Step 1 — Method of Moments**
-
-I decided to use my empirical data to anchor the priors. Gamma 
-is parameterized by mean and variance — so I estimated both from 
-my observed data and solved for α and β:
-```
-α_emp = X̄² / S²
-β_emp = X̄  / S²
-```
-
-This gives a prior centered exactly on what the data suggests. 
-But then I realized the problem.
-
-**The Double Dipping Problem**
-
-I was using the same data to set the prior AND to update it to 
-the posterior. That means the data is counted twice — once in 
-the prior and once in the likelihood. The result is a posterior 
-that's overconfident — the credibility bands are narrower than 
-they should be because the data has more influence than it 
-should.
-
-The fix was to inflate the prior variance — making the prior 
-weaker so the data has to work harder to update it. But I needed 
-a principled way to decide how much to inflate, not just 
-arbitrarily multiply by 3 or 5.
-
-**Step 2 — ESS Scaling**
-
-This is where declustering connected back in a way I hadn't 
-anticipated. Because I had declustered my events I knew exactly 
-how many independent observations I had — n_events. 
-That's the degrees of freedom in the Gamma-Chi-squared 
-relationship, where ESS ≈ 2α.
-
-Setting a desired prior weight of w = 0.05 — meaning the prior 
-carries 5% of total information and the data carries 95%:
-```
-ESS_prior = (w / 1-w) × n_events
-scale     = (ESS_prior / 2) / α_emp
-α_prior   = α_emp × scale
-β_prior   = β_emp × scale
-```
-
-Scaling both α and β by the same factor preserves the prior mean 
-while widening the variance — the prior stays anchored to the 
-data but loses enough weight that double dipping stops being a 
-problem.
-
-**Final priors:**
-```
-λ ~ Gamma(α_λ,prior, β_λ,prior)
-σ ~ Gamma(α_σ,prior, β_σ,prior)
-ξ ~ Gamma(α_ξ,prior, β_ξ,prior) - 0.3
-```
-
-σ gets no shift — negative scale is mathematically undefined.
-ξ gets the -0.3 shift for the physical reasons described above.
 
 ---
 
