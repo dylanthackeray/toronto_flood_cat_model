@@ -1,5 +1,171 @@
 ---
-title: "01_Posterior_Predictive_Checks"
+title: "#1 Posterior Predctive Checks on Base Bayesian Model - Don River"
+author: "Dylan"
+date: "`r Sys.Date()`"
 output: html_document
 ---
 
+# Load Observed Data and Bayesian Models
+```{r}
+library(tidyverse)
+library(here)
+library(evd)
+library(posterior)
+
+set.seed(1234)
+
+# Load observed data
+severity_df <- read_csv(here::here("data", "model", "severity_data.csv"))
+freq_df     <- read_csv(here::here("data", "model", "frequency_data.csv"))
+
+exceedances <- severity_df$exceedance
+
+# Load Bayesian fits
+bayesian_pois <- readRDS(here::here("data", "model", "bayesian_model_fits", "poisson_fit.rds"))
+bayesian_gpd  <- readRDS(here::here("data", "model", "bayesian_model_fits", "gpd_fit.rds"))
+
+```
+
+# Extract Posterior Draws
+```{r}
+
+# Extract summaries
+pois_draws <- as_draws_df(bayesian_pois$draws())
+gpd_draws  <- as_draws_df(bayesian_gpd$draws())
+
+# Combine relevant parameters
+posterior_df <- tibble(
+  lambda = pois_draws$lambda,
+  sigma  = gpd_draws$sigma,
+  xi     = gpd_draws$xi
+)
+
+# Sample subset for speed
+posterior_sample <- posterior_df %>%
+  sample_n(500)
+
+```
+
+# Simulate From Posterior
+```{r}
+
+sim_counts <- c()
+sim_exceedances <- list()
+
+for(i in 1:nrow(posterior_sample)) {
+  
+  lambda <- posterior_sample$lambda[i]
+  sigma  <- posterior_sample$sigma[i]
+  xi     <- posterior_sample$xi[i]
+  
+  # Simulate yearly event count
+  N <- rpois(1, lambda)
+  sim_counts <- c(sim_counts, N)
+  
+  # Simulate exceedances
+  if(N > 0) {
+    X <- rgpd(N, loc = 0, scale = sigma, shape = xi)
+    sim_exceedances[[i]] <- X
+  }
+}
+
+sim_exceedances <- unlist(sim_exceedances)
+```
+
+# Frequency Plot (λ)
+
+```{r}
+
+ggplot() +
+  geom_histogram(aes(x = freq_df$n_events),
+                 fill = "blue", alpha = 0.5, bins = 10) +
+  geom_histogram(aes(x = sim_counts),
+                 fill = "red", alpha = 0.5, bins = 10) +
+  labs(
+    title = "Observed vs Simulated Event Counts",
+    x = "Number of Events per Year",
+    y = "Frequency"
+  )
+```
+
+
+# Severity Plot Parameters: {σ, ξ}
+
+```{r}
+
+ggplot() +
+  geom_histogram(aes(x = exceedances),
+                 bins = 20, alpha = 0.5) +
+  geom_histogram(aes(x = sim_exceedances),
+                 bins = 20, alpha = 0.5) +
+  labs(
+    title = "Observed vs Simulated Exceedances",
+    x = "Exceedance (Q_peak - u)",
+    y = "Frequency"
+  )
+```
+
+# Tail Behaviour
+
+```{r}
+
+# Empirical survival
+empirical_df <- tibble(x = exceedances) %>%
+  arrange(x) %>%
+  mutate(survival = 1 - (row_number()/n()))
+
+# Simulated survival
+sim_df <- tibble(x = sim_exceedances) %>%
+  arrange(x) %>%
+  mutate(survival = 1 - (row_number()/n()))
+
+ggplot() +
+  geom_step(data = empirical_df,
+            aes(x = x, y = survival),
+            linewidth = 1) +
+  geom_step(data = sim_df,
+            aes(x = x, y = survival),
+            linetype = "dashed",
+            linewidth = 1) +
+  scale_y_log10() +
+  labs(
+    title = "Tail Comparison (Log Survival)",
+    x = "Exceedance",
+    y = "Survival Probability (log scale)"
+  )
+```
+The survival function comparison shows strong agreement between observed and simulated data in the central region, indicating that the scale parameter (σ) is well-identified and accurately captures the typical magnitude of exceedances.
+
+However, divergence in the upper tail reflects sensitivity to the shape parameter (ξ), which governs the rate of tail decay. The variability observed in the simulated tail arises from posterior uncertainty in ξ, rather than systematic bias, indicating that **extreme behavior is weakly identified by the available data**.
+
+# Numerical Summary Statistics
+```{r}
+
+# Observed stats
+obs_stats <- tibble(
+  mean = mean(exceedances),
+  p95  = quantile(exceedances, 0.95),
+  max  = max(exceedances)
+)
+
+# Simulated stats (repeat many times)
+sim_stats <- tibble(
+  mean = mean(sim_exceedances),
+  p95  = quantile(sim_exceedances, 0.95),
+  max  = max(sim_exceedances)
+)
+
+obs_stats
+sim_stats
+```
+The large difference in maximum values reflects the sensitivity of extreme outcomes to the shape parameter (ξ), rather than a failure of the model to reproduce observed data.
+
+# Summary 
+
+The posterior predictive simulations aligns well with observed data in terms of central tendency and upper quantiles, but produce **larger maximum exceedances**. This reflects **uncertainty** in the **shape parameter (ξ)**, which governs tail behavior.
+
+Small **positive** values of ξ imply a heavy tail, **allowing for rare but extreme events beyond the historical record**. As a result, the model does not simply reproduce observed extremes, but captures a distribution of plausible future outcomes.
+
+This highlights a key distinction: empirical data reflects what has occurred, while the model represents what is possible under the inferred process.
+
+Overall, tail behavior remains weakly identified due to limited extreme observations, **reinforcing the need for a Bayesian framework** to properly quantify uncertainty in extreme risk estimates such as AEP curves.
