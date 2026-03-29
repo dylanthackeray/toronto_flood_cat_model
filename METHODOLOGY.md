@@ -14,10 +14,9 @@ I actually got there.
 4. [Threshold Selection](#threshold-selection)
 5. [Frequency Model](#frequency-model)
 6. [Severity Model](#severity-model)
-7. [Prior Construction](#prior-construction)
-8. [Loss Function](#loss-function)
-9. [Monte Carlo Simulation](#monte-carlo-simulation)
-10. [Assumptions & Limitations](#assumptions--limitations)
+7. [Loss Function](#loss-function)
+8. [Monte Carlo Simulation](#monte-carlo-simulation)
+9. [Assumptions & Limitations](#assumptions--limitations)
 
 ---
 
