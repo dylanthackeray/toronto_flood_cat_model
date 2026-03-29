@@ -5,3 +5,5 @@
 data/
 .DS_Store
 **/.DS_Store
+R_Stan_Scripts/gpd_model
+R_Stan_Scripts/poisson_model
