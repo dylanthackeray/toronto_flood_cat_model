@@ -1,0 +1,156 @@
+---
+title: "Bayesian and Frequentist Model Comparison - Don River"
+author: "Dylan"
+date: "`r Sys.Date()`"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE, warning = FALSE, message = FALSE)
+```
+
+
+# Overview 
+
+# Load Frequency and Bayesian Data
+
+```{r}
+
+library(tidyverse)
+
+# Frequentist Outputs
+frequentist_lambda <- read_rds(here::here("data", "model", "frequentist_model_fits", "lambda_hat.rds"))
+
+frequentist_gpd <- read_rds(here::here("data", "model", "frequentist_model_fits", "gpd_fit.rds"))
+
+# Bayesian Outputs
+bayesian_pois <- read_rds(here::here("data", "model", "bayesian_model_fits", "poisson_fit.rds"))
+
+bayesian_gpd <- read_rds(here::here("data", "model", "bayesian_model_fits", "gpd_fit.rds"))
+```
+
+
+
+# Create Table to Analyze
+```{r}
+# Extract Bayesian summaries
+pois_summary <- bayesian_pois$summary()
+gpd_summary  <- bayesian_gpd$summary()
+
+# Keep only parameters
+pois_params <- pois_summary %>%
+  filter(variable == "lambda") %>%
+  select(mean, sd, q5, q95)
+
+gpd_params <- gpd_summary %>%
+  filter(variable %in% c("sigma", "xi")) %>%
+  select(variable, mean, sd, q5, q95)
+
+# Frequentist values
+freq_sigma <- frequentist_gpd$estimate["scale"]
+freq_xi    <- frequentist_gpd$estimate["shape"]
+
+# Combine into one table
+comparison_table <- tibble(
+  Parameter = c("lambda", "sigma", "xi"),
+  
+  Frequentist = c(
+    frequentist_lambda,
+    freq_sigma,
+    freq_xi
+  ),
+  
+  Bayesian_Mean = c(
+    pois_params$mean,
+    gpd_params$mean[gpd_params$variable == "sigma"],
+    gpd_params$mean[gpd_params$variable == "xi"]
+  ),
+  
+  Bayesian_SD = c(
+    pois_params$sd,
+    gpd_params$sd[gpd_params$variable == "sigma"],
+    gpd_params$sd[gpd_params$variable == "xi"]
+  ),
+  
+  CI_5 = c(
+    pois_params$q5,
+    gpd_params$q5[gpd_params$variable == "sigma"],
+    gpd_params$q5[gpd_params$variable == "xi"]
+  ),
+  
+  CI_95 = c(
+    pois_params$q95,
+    gpd_params$q95[gpd_params$variable == "sigma"],
+    gpd_params$q95[gpd_params$variable == "xi"]
+  )
+)
+
+comparison_table
+```
+
+The comparison table summarizes the alignment between frequentist point estimates and Bayesian posterior summaries for each model parameter.
+
+Across all parameters (λ, σ, ξ), the Bayesian posterior means are consistent with the frequentist estimates, indicating that the likelihood has been correctly specified and the Bayesian model is well-calibrated.
+
+However, the Bayesian framework provides uncertainty quantification through posterior standard deviations and credible intervals, which is critical for understanding the reliability of each parameter estimate.
+
+# Visuals
+```{r}
+
+# Plot Parameters
+comparison_table %>%
+  filter(Parameter == "sigma") %>%
+  ggplot(aes(x = Parameter)) +
+  geom_point(aes(y = Frequentist), color = "red", size = 3) +
+  geom_point(aes(y = Bayesian_Mean), color = "blue", size = 3) +
+  geom_errorbar(aes(ymin = CI_5, ymax = CI_95), width = 0.2) +
+  labs(
+    title = "Sigma Parameter (σ) Uncertainty",
+    y = "Value"
+  )
+
+comparison_table %>%
+  filter(Parameter == "xi") %>%
+  ggplot(aes(x = Parameter)) +
+  geom_point(aes(y = Frequentist), color = "red", size = 3) +
+  geom_point(aes(y = Bayesian_Mean), color = "blue", size = 3) +
+  geom_errorbar(aes(ymin = CI_5, ymax = CI_95), width = 0.2) +
+  labs(
+    title = "Shape Parameter (ξ) Uncertainty",
+    y = "Value"
+  )
+
+comparison_table %>%
+  filter(Parameter == "lambda") %>%
+  ggplot(aes(x = Parameter)) +
+  geom_point(aes(y = Frequentist), color = "red", size = 3) +
+  geom_point(aes(y = Bayesian_Mean), color = "blue", size = 3) +
+  geom_errorbar(aes(ymin = CI_5, ymax = CI_95), width = 0.2) +
+  labs(
+    title = "Lambda Parameter (λ) Uncertainty",
+    y = "Value"
+  )
+
+```
+
+# Summary
+
+This plot compares frequentist point estimates (red) with Bayesian posterior means (blue), along with 90% credible intervals.
+
+The close alignment between frequentist and Bayesian estimates across all parameters indicates that both approaches are capturing the same underlying structure in the data. This provides a strong consistency check on the model specification.
+
+However, the Bayesian framework reveals an important distinction: parameter uncertainty is not uniform across the model.
+
+- λ (frequency) is tightly constrained, with a narrow credible interval, indicating that event frequency is well-identified.
+ 
+- σ (scale) shows moderate uncertainty, reflecting natural variability in exceedance magnitudes.
+ 
+- ξ (shape) exhibits substantial uncertainty, with credible intervals being [`r round(comparison_table[comparison_table$Parameter == "xi", c("CI_5", "CI_95")], 2)`]. 
+
+This behavior of ξ is particularly important. While the point estimate suggests a mildly heavy-tailed distribution, the wide credible interval indicates that tail behavior is weakly identified by the available data.
+
+In practical terms, this means that extreme flood risk estimates are highly sensitive to uncertainty in ξ. Small changes in this parameter can lead to large differences in predicted tail outcomes.
+
+This highlights the key limitation of the frequentist approach: it provides a single point estimate for ξ without quantifying how uncertain that estimate is.
+
+In contrast, the Bayesian framework explicitly captures this uncertainty, making it possible to propagate it into downstream risk metrics such as Annual Exceedance Probability (AEP) curves.
