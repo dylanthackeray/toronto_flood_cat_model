@@ -46,6 +46,154 @@ posterior_sample <- posterior_df %>%
 
 ```
 
+# Trace Plots (HMC diagnostics)
+
+```{r}
+library(bayesplot)
+
+# Extract draws in correct format
+pois_draws_array <- bayesian_pois$draws()
+gpd_draws_array <- bayesian_gpd$draws()
+
+# Combine parameters into one object
+combined_draws <- cbind(
+  as_draws_df(pois_draws_array)[, c("lambda", ".chain", ".iteration")],
+  as_draws_df(gpd_draws_array)[, c("sigma", "xi")]
+)
+
+# Convert to proper draws object
+combined_draws <- as_draws_array(combined_draws)
+
+# Plot traces
+# Poisson trace
+mcmc_trace(
+  bayesian_pois$draws(),
+  pars = c("lambda")
+)
+
+# GPD trace
+mcmc_trace(
+  bayesian_gpd$draws(),
+  pars = c("sigma", "xi")
+)
+
+
+# Prior * Likehood -> Posterior Plot
+{pois_draws_array <- as_draws_df(pois_draws_array)
+gpd_draws_array <- as_draws_df(gpd_draws_array)
+
+    # Grids for each parameter
+lambda_vals <- seq(0.5, 3, length.out = 200)
+sigma_vals  <- seq(5, 25, length.out = 200)
+xi_vals     <- seq(-0.5, 0.5, length.out = 200)
+
+    # Fix other Parameters (Posterior means)
+lambda_fix <- mean(pois_draws$lambda)
+sigma_fix  <- mean(gpd_draws$sigma)
+xi_fix     <- mean(gpd_draws$xi)
+
+# Poisson ~ λ
+lik_lambda <- sapply(lambda_vals, function(l) {
+  exp(sum(dpois(freq_df$n_events, l, log = TRUE)))
+})
+lik_lambda <- lik_lambda / max(lik_lambda)
+
+# GPD ~ σ
+lik_sigma <- sapply(sigma_vals, function(s) {
+  exp(sum(dgpd(exceedances,
+               loc = 0,
+               scale = s,
+               shape = xi_fix,
+               log = TRUE)))
+})
+lik_sigma <- lik_sigma / max(lik_sigma)
+
+# GPD ~ ξ
+lik_xi <- sapply(xi_vals, function(x) {
+  exp(sum(dgpd(exceedances,
+               loc = 0,
+               scale = sigma_fix,
+               shape = x,
+               log = TRUE)))
+})
+lik_xi <- lik_xi / max(lik_xi)
+
+prior_lambda <- dgamma(lambda_vals, shape = 2, rate = 1)
+prior_sigma  <- dgamma(sigma_vals, shape = 2, rate = 0.1)
+prior_xi     <- dnorm(xi_vals, mean = -0.3, sd = 0.3)
+
+post_lambda <- density(pois_draws$lambda)
+post_sigma  <- density(gpd_draws$sigma)
+post_xi     <- density(gpd_draws$xi)
+
+df_lambda <- tibble(
+  x = lambda_vals,
+  Prior = prior_lambda,
+  Likelihood = lik_lambda,
+  Parameter = "lambda"
+)
+
+df_sigma <- tibble(
+  x = sigma_vals,
+  Prior = prior_sigma,
+  Likelihood = lik_sigma,
+  Parameter = "sigma"
+)
+
+df_xi <- tibble(
+  x = xi_vals,
+  Prior = prior_xi,
+  Likelihood = lik_xi,
+  Parameter = "xi"
+)
+
+df_all <- bind_rows(df_lambda, df_sigma, df_xi) %>%
+  pivot_longer(cols = c(Prior, Likelihood),
+               names_to = "Type",
+               values_to = "Density")
+
+
+post_df <- bind_rows(
+  tibble(x = post_lambda$x, Density = post_lambda$y, Parameter = "lambda"),
+  tibble(x = post_sigma$x, Density = post_sigma$y, Parameter = "sigma"),
+  tibble(x = post_xi$x, Density = post_xi$y, Parameter = "xi")
+)
+
+ggplot() +
+  geom_line(data = df_all,
+            aes(x = x, y = Density, color = Type),
+            linewidth = 1.2) +
+  
+  geom_line(data = post_df,
+            aes(x = x, y = Density),
+            color = "black",
+            linewidth = 1.2) +
+  
+  facet_wrap(~Parameter, scales = "free") +
+  
+  labs(
+    title = "Prior vs Likelihood vs Posterior (All Parameters)",
+    subtitle = "Black = Posterior (Stan), Colored = Prior & Likelihood",
+    x = "Parameter Value",
+    y = "Density"
+  )
+}
+```
+
+The trace plots confirm that all parameters have converged and are well-sampled. However, the shape parameter ξ shows higher posterior variance, indicating that while the inference is computationally stable, tail behavior remains weakly identified due to limited extreme observations.
+
+**Interpretation of Prior, Likelihood, and Posterior**
+
+The prior, likelihood, and posterior distributions illustrate how information is updated within the Bayesian framework.
+
+The priors are intentionally weak and diffuse, reflecting limited prior knowledge and allowing the data to drive inference. As a result, the likelihood plays a dominant role in shaping the posterior distribution.
+
+For parameters such as λ (event frequency) and σ (scale), the likelihood is relatively concentrated, indicating that these parameters are well-identified by the data. Consequently, the posterior distributions closely align with the likelihood, with only minor influence from the prior.
+
+In contrast, the shape parameter ξ exhibits substantially greater uncertainty. The likelihood for ξ is relatively flat due to the limited number of extreme observations, meaning the data provides weak information about tail behavior. As a result, the posterior remains diffuse and is more sensitive to prior assumptions.
+
+This highlights a key challenge in extreme value modeling: while central behavior can be estimated reliably, tail behavior is inherently data-sparse and difficult to identify. The Bayesian framework makes this uncertainty explicit, rather than masking it through point estimates.
+
 # Simulate From Posterior
 ```{r}
 
@@ -60,7 +208,7 @@ for(i in 1:nrow(posterior_sample)) {
   
   # Simulate yearly event count
   N <- rpois(1, lambda)
-  sim_counts <- c(sim_counts, N)
+  sim_counts <- c(sim_counts, N) #scale for density rather than the frequency. 
   
   # Simulate exceedances
   if(N > 0) {
@@ -77,12 +225,13 @@ sim_exceedances <- unlist(sim_exceedances)
 ```{r}
 
 ggplot() +
-  geom_histogram(aes(x = freq_df$n_events),
+  geom_histogram(aes(x = freq_df$n_events, y = after_stat(density)),
                  fill = "blue", alpha = 0.5, bins = 10) +
-  geom_histogram(aes(x = sim_counts),
+  geom_histogram(aes(x = sim_counts, y = after_stat(density)),
                  fill = "red", alpha = 0.5, bins = 10) +
   labs(
     title = "Observed vs Simulated Event Counts",
+    subtitle = "red: Simulated Posterior Values | blue: Observed Values",
     x = "Number of Events per Year",
     y = "Frequency"
   )
@@ -94,12 +243,15 @@ ggplot() +
 ```{r}
 
 ggplot() +
-  geom_histogram(aes(x = exceedances),
-                 bins = 20, alpha = 0.5) +
-  geom_histogram(aes(x = sim_exceedances),
-                 bins = 20, alpha = 0.5) +
+  geom_histogram(aes(x = exceedances, y = after_stat(density)),
+                 bins = 20, alpha = 0.5,
+                 fill = "blue") +
+  geom_histogram(aes(x = sim_exceedances, y = after_stat(density)),
+                 bins = 20, alpha = 0.5,
+                 fill = "red") +
   labs(
     title = "Observed vs Simulated Exceedances",
+    subtitle = "red: Simulated Posterior Values | blue: Observed Values",
     x = "Exceedance (Q_peak - u)",
     y = "Frequency"
   )
@@ -129,11 +281,13 @@ ggplot() +
             linewidth = 1) +
   scale_y_log10() +
   labs(
-    title = "Tail Comparison (Log Survival)",
+    title = "Tail Comparison (Log)",
+    subtitle = "dashed: simulated survival function | solid: observed survival function",
     x = "Exceedance",
-    y = "Survival Probability (log scale)"
+    y = "Survival Probability"
   )
 ```
+
 The survival function comparison shows strong agreement between observed and simulated data in the central region, indicating that the scale parameter (σ) is well-identified and accurately captures the typical magnitude of exceedances.
 
 However, divergence in the upper tail reflects sensitivity to the shape parameter (ξ), which governs the rate of tail decay. The variability observed in the simulated tail arises from posterior uncertainty in ξ, rather than systematic bias, indicating that **extreme behavior is weakly identified by the available data**.
@@ -158,14 +312,13 @@ sim_stats <- tibble(
 obs_stats
 sim_stats
 ```
+
 The large difference in maximum values reflects the sensitivity of extreme outcomes to the shape parameter (ξ), rather than a failure of the model to reproduce observed data.
 
 # Summary 
 
-The posterior predictive simulations aligns well with observed data in terms of central tendency and upper quantiles, but produce **larger maximum exceedances**. This reflects **uncertainty** in the **shape parameter (ξ)**, which governs tail behavior.
+The posterior predictive simulations reproduce the central behavior and upper quantiles of the observed data well, but generate larger extreme values. This divergence is driven by uncertainty in the shape parameter (ξ), which controls tail behavior.
 
-Small **positive** values of ξ imply a heavy tail, **allowing for rare but extreme events beyond the historical record**. As a result, the model does not simply reproduce observed extremes, but captures a distribution of plausible future outcomes.
+Even small positive values of ξ imply a heavy-tailed distribution, meaning the model assigns non-negligible probability to extreme events beyond those observed historically. As a result, the model does not simply replicate past data, but represents a range of plausible future outcomes under the inferred process.
 
-This highlights a key distinction: empirical data reflects what has occurred, while the model represents what is possible under the inferred process.
-
-Overall, tail behavior remains weakly identified due to limited extreme observations, **reinforcing the need for a Bayesian framework** to properly quantify uncertainty in extreme risk estimates such as AEP curves.
+This highlights a fundamental limitation of extreme value modeling: tail behavior is weakly identified due to data sparsity. The Bayesian framework makes this uncertainty explicit, allowing it to propagate into downstream risk estimates such as AEP curves.

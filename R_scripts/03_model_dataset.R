@@ -20,8 +20,7 @@ u_physical   <- read_rds(here::here("data", "clean", "u_physical.rds"))
 freq_floods <- flood_events %>%
   group_by(year) %>%
   summarise(
-    n_events = n()
-  )
+    n_events = n())
 
 # ============================================================
 # 2. Severity Dataset (GPD)
