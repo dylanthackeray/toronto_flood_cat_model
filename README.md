@@ -70,11 +70,11 @@ download_hydat()
 - [ ✅ ] Data collection and cleaning
 - [ ✅ ] EDA
 - [ ✅ ] Threshold selection (physical water level)
-- [ ] Threshold selection (statistical GPD)
-- [ ] Frequency model
-- [ ] Severity model
-- [ ] Loss function calibration
-- [ ] Monte Carlo simulation
+- [ ✅ ] Threshold selection (statistical GPD)
+- [ ✅ ] Frequency model
+- [ ✅ ] Severity model
+- [ ✅ ] Hamiltonian Monte Carlo simulation 
+- [ ] Loss function Model   # Currently stuck here, thinking of pivoting to modeling depth and spread of a flood first as losses depend on this.
 - [ ] Results and visualizations
 
 ---
