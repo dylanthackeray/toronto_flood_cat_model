@@ -150,20 +150,33 @@ $$
 
 The posterior distributions for all model parameters are estimated using Hamiltonian Monte Carlo (HMC) as implemented in `cmdstanr`.
 
-Rather than relying on closed-form solutions, the model uses numerical sampling to approximate:
+The model does not use a single joint sampler over all parameters. Instead, inference is performed using **two independent HMC procedures** corresponding to the modular structure of the model:
+
+- Poisson frequency model → λ  
+- GPD severity model → σ, ξ  
+
+Each component is conditioned on the declustered exceedance structure but sampled separately for computational stability and interpretability.
+
+Rather than relying on closed-form solutions, the model approximates posterior distributions:
 
 $$
-p(\lambda, \sigma, \xi \mid \text{data})
+p(\lambda \mid \text{data}) \quad \text{and} \quad p(\sigma, \xi \mid \text{exceedances})
 $$
 
 ---
 
 ### Sampling Setup
 
+Each HMC sampler uses the following configuration:
+
 - Number of chains: 4  
 - Warmup iterations: 1000  
 - Sampling iterations: 2000 per chain  
 - Total posterior draws: 8000 per parameter (before diagnostics filtering)
+
+This is run independently for:
+- Poisson frequency model  
+- GPD severity model  
 
 ---
 
@@ -171,37 +184,47 @@ $$
 
 HMC is used because:
 
-- It efficiently explores high-dimensional, correlated posterior spaces  
-- It avoids random-walk behavior seen in basic MCMC  
-- It is well-suited for hierarchical and non-linear models like the Poisson–GPD structure
+- It efficiently explores high-dimensional and correlated posterior spaces  
+- It avoids random-walk behavior seen in basic MCMC methods  
+- It is well-suited for models with strong curvature and weak identifiability (especially ξ in the tail)
 
-This is particularly important for the shape parameter (ξ), which exhibits weak identifiability and strong posterior curvature in the tail region.
+This is particularly important for the GPD shape parameter (ξ), where posterior geometry is highly non-linear and sensitive to extreme observations.
 
 ---
 
 ### Diagnostics and Model Validity
 
-Model validity is assessed using:
+Model validity is assessed separately for each HMC system using:
 
 - $\hat{R}$ convergence diagnostics  
 - Effective sample size (ESS)  
 - Divergent transition checks  
 - Trace stability across chains  
 
-Only converged posterior draws are carried forward into predictive simulation.
+Only converged posterior draws are retained for downstream simulation.
 
 ---
 
 ### Role in the Pipeline
 
-HMC forms the inference layer of the model:
+HMC forms the inference layer of the model and operates as two decoupled estimators within the broader framework:
 
-1. Data informs likelihood (Poisson + GPD structure)  
-2. HMC samples parameter posterior distributions  
-3. Posterior draws are passed into Monte Carlo simulation  
-4. Forward simulations generate predictive flood distributions  
+1. Data is split into:
+   - Event counts (for Poisson model)
+   - Exceedances (for GPD model)
 
-This separation ensures that uncertainty is fully propagated from parameter estimation into downstream risk metrics.
+2. HMC samples posterior distributions independently:
+   - $p(\lambda \mid \text{data})$
+   - $p(\sigma, \xi \mid \text{exceedances})$
+
+3. Posterior draws are combined in the simulation layer
+
+4. Monte Carlo simulation propagates joint uncertainty forward into annual flood distributions
+
+This separation ensures:
+- computational stability  
+- modular inference  
+- transparent uncertainty propagation across frequency and severity components
 
 ---
 
