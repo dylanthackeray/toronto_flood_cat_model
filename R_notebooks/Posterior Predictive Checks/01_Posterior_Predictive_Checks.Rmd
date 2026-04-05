@@ -6,6 +6,7 @@ output: html_document
 ---
 
 # Load Observed Data and Bayesian Models
+
 ```{r}
 library(tidyverse)
 library(here)
@@ -27,6 +28,7 @@ bayesian_gpd  <- readRDS(here::here("data", "model", "bayesian_model_fits", "gpd
 ```
 
 # Extract Posterior Draws
+
 ```{r}
 
 # Extract summaries
@@ -197,6 +199,7 @@ In contrast, the shape parameter ξ exhibits greater uncertainty. The likelihood
 **This highlights a key challenge in extreme value modeling**: while central behavior can be estimated reliably, tail behavior is inherently data-sparse and difficult to identify. The Bayesian framework makes this uncertainty explicit, rather than masking it through point estimates.
 
 # Simulate From Posterior
+
 ```{r}
 
 sim_counts <- c()
@@ -238,7 +241,6 @@ ggplot() +
     y = "Frequency"
   )
 ```
-
 
 # Severity Plot Parameters: {σ, ξ}
 
@@ -296,8 +298,8 @@ The survival function comparison shows strong agreement between observed and sim
 
 However, divergence in the upper tail reflects sensitivity to the shape parameter (ξ), which governs the rate of tail decay. The variability observed in the simulated tail arises from posterior uncertainty in ξ, rather than systematic bias, indicating that **extreme behavior is weakly identified by the available data or my threshold choice**.
 
-
 # Numerical Summary Statistics
+
 ```{r}
 library(evd)
 
@@ -348,21 +350,16 @@ The posterior predictive checks demonstrate that while the model captures centra
 
 Even small positive values of ξ imply a heavy-tailed distribution, meaning the model assigns non-negligible probability to extreme events beyond those observed historically. As a result, the model does not simply replicate past data, but represents a range of plausible future outcomes under the inferred process.
 
-Importantly, the observed extreme values fall within high-density regions of the simulated posterior distribution, indicating that they are not unusual under the model. However, the posterior distribution remains wide, reflecting the fact that the available data provides limited information about tail behavior. ~ see **numerical summary statistics header **
+Importantly, the observed extreme values fall within high-density regions of the simulated posterior distribution, indicating that they are not unusual under the model. However, the posterior distribution remains wide, reflecting the fact that the available data provides limited information about tail behavior. \~ see **numerical summary statistics header**
 
 # Next Steps
 
 To address the ξ parameter uncertainty, the next stage of development will focus on introducing additional structure and information into the model:
 
- - **Improve tail estimation (ξ)**:
-Incorporate physically-informed priors and/or hierarchical structure (e.g., spatial pooling across locations) to better constrain tail behavior.
+-   **Improve tail estimation (ξ)**: Incorporate physically-informed priors and/or hierarchical structure (e.g., spatial pooling across locations) to better constrain tail behavior.
 
+-   **Move beyond stationarity**: Extend the model to allow parameters to vary over time, linking frequency and severity to covariates such as rainfall and climate drivers.
 
-- **Move beyond stationarity**:
-Extend the model to allow parameters to vary over time, linking frequency and severity to covariates such as rainfall and climate drivers.
-
-
-- **Build a physical-economic pipeline**:
-Develop a transformation from flow exceedance to economic loss through intermediate layers (e.g., flow -> water depth -> damage -> exposure), enabling meaningful risk quantification.
+-   **Build a physical-economic pipeline**: Develop a transformation from flow exceedance to economic loss through intermediate layers (e.g., flow -\> water depth -\> damage -\> exposure), enabling meaningful risk quantification.
 
 These extensions will allow the model to move from a statistically sound baseline toward a more realistic and decision-relevant flood risk framework.
