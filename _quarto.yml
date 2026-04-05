@@ -1,2 +1,6 @@
 project:
   output-dir: _preview_notebook_files
+  
+format:
+  html:
+    embed-resources: false
