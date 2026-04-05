@@ -14,6 +14,7 @@ This document outlines the statistical framework underlying the Don River Flood 
 - [Threshold Selection](#threshold-selection)
 - [Frequency Model](#frequency-model)
 - [Severity Model](#severity-model)
+- [Bayesian Inference](#bayesian-inference-via-hamiltonian-monte-carlo-hmc)
 - [Posterior Predictive Checks (PPCs)](#posterior-predictive-checks-ppcs)
 - [Loss Function](#loss-function-current)
 - [Monte Carlo Simulation](#monte-carlo-simulation)
@@ -28,10 +29,10 @@ This document outlines the statistical framework underlying the Don River Flood 
 **Problem:** Canada lacks an accessible, unified flood risk modeling framework, while existing catastrophe models are proprietary and costly.
 
 **Approach:** A transparent Bayesian extreme value model that decomposes flood risk into:
-- **Frequency** (how often floods occur)
-- **Severity** (how extreme they are)
+- Frequency (how often floods occur)
+- Severity (how extreme they are)
 
-Both components are modeled probabilistically, with full uncertainty propagation into downstream simulations.
+Both components are modeled probabilistically, with full uncertainty propagation.
 
 ---
 
@@ -39,19 +40,17 @@ Both components are modeled probabilistically, with full uncertainty propagation
 
 This project did not begin as a Bayesian model.
 
-The initial approach was a Monte Carlo simulation using point estimates and confidence intervals. While this produced reasonable outputs, it became clear that the uncertainty was not being handled coherently. Confidence intervals were applied after estimation, rather than being integrated into the data-generating process itself.
+The initial approach was a Monte Carlo simulation using point estimates and confidence intervals. While this produced reasonable outputs, uncertainty was not being handled coherently. Confidence intervals were applied after estimation rather than integrated into the generative process.
 
-**This raised a key issue:**  
-extreme value problems are fundamentally driven by uncertainty, especially in the tail, yet the modeling framework treated parameters as fixed.
+This raised a key issue: extreme value problems are fundamentally driven by uncertainty, especially in the tail, yet parameters were treated as fixed.
 
 The shift to a Bayesian approach addressed this directly.
 
-Instead of relying on single estimates, parameters are treated as distributions. This allows uncertainty in frequency (λ) and severity (σ, ξ) to propagate naturally into simulated flood outcomes. In particular, uncertainty in the shape parameter (ξ) is explicitly represented, rather than hidden behind point estimates.
+Instead of single estimates, parameters are treated as distributions. This allows uncertainty in frequency (λ) and severity (σ, ξ) to propagate naturally into simulated outcomes. In particular, uncertainty in the shape parameter (ξ) is explicitly represented.
 
-The result is not just a model that fits historical data, but one that captures a range of plausible future scenarios, including events that have not yet been observed.
+The result is not just a model that fits historical data, but one that represents a range of plausible futures, including unobserved extremes.
 
-**This perspective is central to the project:**  
-the goal is not to eliminate uncertainty, but to model it explicitly and carry it through the entire system.
+The goal is not to eliminate uncertainty, but to model it explicitly and propagate it through the system.
 
 ---
 
@@ -60,235 +59,253 @@ the goal is not to eliminate uncertainty, but to model it explicitly and carry i
 Flood risk is modeled as two components:
 
 ### Frequency
-\[
-N \sim \text{Poisson}(\lambda), \quad \lambda \sim \text{Gamma}(\alpha_\lambda, \beta_\lambda)
-\]
 
-- Posterior estimate: **λ ≈ 1.55 events/year** \([1.15, 2.00]\)
+$$
+N \sim \text{Poisson}(\lambda), \quad \lambda \sim \text{Gamma}(\alpha_\lambda, \beta_\lambda)
+$$
+
+Posterior estimate:  
+λ ≈ 1.55 events/year (95% CI: [1.15, 2.00])
 
 ---
 
 ### Severity
-\[
-X_i \mid \sigma, \xi \sim \text{GPD}(0, \sigma, \xi), \quad X_i = Q_{\text{peak},i} - u
-\]
 
-- Posterior estimates:
-  - **σ ≈ 13.2** \([10.1, 17.2]\)
-  - **ξ ≈ -0.12** \([-0.35, 0.10]\)
+$$
+X_i \mid \sigma, \xi \sim \text{GPD}(0, \sigma, \xi), \quad X_i = Q_{\text{peak},i} - u
+$$
+
+Posterior estimates:
+- σ ≈ 13.2 (95% CI: [10.1, 17.2])
+- ξ ≈ -0.12 (95% CI: [-0.35, 0.10])
 
 ---
 
 ## Data Sources
 
-- **Primary:** Water Survey of Canada (HYDAT), Don River at Todmorden (1961–2023)  
-- **Secondary:** Environment Canada water level data (rating curve construction)
+- Water Survey of Canada (HYDAT), Don River at Todmorden (1961–2023)  
+- Environment Canada water level data (rating curve construction)
 
 ---
 
 ## Event Definition & Declustering
 
-- **Threshold:** \(u_{\text{physical}} = 40 \, \text{m}^3/\text{s}\)  
-- **Event definition:** Continuous exceedance of threshold  
-- **Declustering rule:** 3 consecutive days below threshold separates events  
+Threshold:
 
-**Result:**  
-- 53 independent flood events  
-- Mean frequency ≈ 1.56 events/year  
+$$
+u_{\text{physical}} = 40 \, \text{m}^3/\text{s}
+$$
+
+- Events defined as continuous exceedances
+- 3-day dry period separates events
+
+Result:
+- 53 independent flood events
+- Mean frequency ≈ 1.56 events/year
 
 ---
 
 ## Threshold Selection
 
-Two thresholds are used:
+Two thresholds:
 
-- **Physical threshold (\(u_{\text{physical}}\))**
-  - Represents onset of real-world flood damage  
-  - Chosen based on observed flood behavior  
+- Physical threshold ($u_{\text{physical}}$): flood onset
+- Statistical threshold (p99.9): GPD validity
 
-- **Statistical threshold (\(u_{\text{statistical}}\))**
-  - Set at p99.9  
-  - Ensures validity of GPD asymptotics  
-
-This separation preserves both **physical interpretability** and **statistical correctness**.
+This preserves both physical meaning and statistical correctness.
 
 ---
 
 ## Frequency Model
 
-The Poisson model assumes:
-- Floods are rare relative to daily observations  
-- Events are independent after declustering  
+Poisson assumption:
+- Events are rare
+- Independence after declustering
 
-The Gamma prior:
-- Ensures positivity  
-- Provides a flexible, weakly informative structure  
+Gamma prior ensures:
+- positivity
+- flexible uncertainty
 
-**Result:** Frequency is well-identified and stable across posterior samples.
+Result: frequency is stable and well-identified.
 
 ---
 
 ## Severity Model
 
-The GPD is used based on the Pickands–Balkema–de Haan theorem, which shows that exceedances over a high threshold converge to a GPD.
+GPD justified by extreme value theory.
 
-### Parameter Interpretation
-- **σ (scale):** magnitude of typical exceedances  
-- **ξ (shape):** tail behavior  
+### Parameters
+- σ: scale of exceedances
+- ξ: tail behavior
 
-### Prior for ξ
-\[
+Prior:
+
+$$
 \xi \sim \mathcal{N}(-0.3, 0.3)
-\]
+$$
 
-Motivation:
-- Reflects physically bounded flood behavior  
-- Allows limited probability of heavy tails  
+---
+
+## Bayesian Inference via Hamiltonian Monte Carlo (HMC)
+
+The posterior distributions for all model parameters are estimated using Hamiltonian Monte Carlo (HMC) as implemented in `cmdstanr`.
+
+Rather than relying on closed-form solutions, the model uses numerical sampling to approximate:
+
+$$
+p(\lambda, \sigma, \xi \mid \text{data})
+$$
+
+---
+
+### Sampling Setup
+
+- Number of chains: 4  
+- Warmup iterations: 1000  
+- Sampling iterations: 2000 per chain  
+- Total posterior draws: 8000 per parameter (before diagnostics filtering)
+
+---
+
+### Why HMC
+
+HMC is used because:
+
+- It efficiently explores high-dimensional, correlated posterior spaces  
+- It avoids random-walk behavior seen in basic MCMC  
+- It is well-suited for hierarchical and non-linear models like the Poisson–GPD structure
+
+This is particularly important for the shape parameter (ξ), which exhibits weak identifiability and strong posterior curvature in the tail region.
+
+---
+
+### Diagnostics and Model Validity
+
+Model validity is assessed using:
+
+- $\hat{R}$ convergence diagnostics  
+- Effective sample size (ESS)  
+- Divergent transition checks  
+- Trace stability across chains  
+
+Only converged posterior draws are carried forward into predictive simulation.
+
+---
+
+### Role in the Pipeline
+
+HMC forms the inference layer of the model:
+
+1. Data informs likelihood (Poisson + GPD structure)  
+2. HMC samples parameter posterior distributions  
+3. Posterior draws are passed into Monte Carlo simulation  
+4. Forward simulations generate predictive flood distributions  
+
+This separation ensures that uncertainty is fully propagated from parameter estimation into downstream risk metrics.
 
 ---
 
 ## Posterior Predictive Checks (PPCs)
 
-Posterior predictive simulations evaluate whether the model can reproduce observed data.
-
 ### Frequency
-- Observed: 1.56 events/year  
-- Simulated: mean ≈ 1.61  
+- Observed: 1.56/year  
+- Simulated: ~1.61/year  
 
-**Result:** Strong agreement → frequency model is well-calibrated  
+Good calibration.
 
 ---
 
 ### Severity
-- Observed: mean 13.4, p95 42.2, max 68  
-- Simulated: mean 14.4, p95 42.9, max 188  
+- Observed mean: 13.4, max: 68  
+- Simulated max: ~188  
 
-**Result:**  
-- Central behavior well captured  
-- Extreme tail significantly wider  
+Central behavior matches; tails diverge.
 
 ---
 
 ### Key Insight: Tail Uncertainty
 
-The model generates extremes beyond observed data. This is expected:
+ξ is weakly identified due to limited extreme observations.
 
-- The shape parameter ξ is weakly identified due to limited extreme observations  
-- Posterior range: \([-0.35, 0.10]\)
+Posterior range:
+ξ ∈ [-0.35, 0.10]
 
 Implications:
-- Negative ξ → bounded tail  
-- Positive ξ → heavy, unbounded tail  
+- ξ < 0 → bounded tail  
+- ξ > 0 → heavy tail  
 
-The model reflects this uncertainty explicitly rather than collapsing it into a single estimate.
+This is not model failure — it is explicit uncertainty in extreme behavior.
 
 ---
 
 ## Loss Function (Current)
 
-\[
-\text{Loss} = \alpha \cdot (Q_{\text{peak}} - u)^\beta
-\]
+$$
+\text{Loss} = \alpha (Q_{\text{peak}} - u)^\beta
+$$
 
-- Simple power-law proxy  
-- Calibrated using limited historical data  
+Simplified proxy.
 
-**Limitation:**  
-This is a placeholder and does not capture:
-- depth  
-- spatial exposure  
-- infrastructure vulnerability  
-
-Not suitable for decision-making in its current form.
+Limitations:
+- no depth modeling
+- no exposure
+- no infrastructure vulnerability
 
 ---
 
 ## Monte Carlo Simulation
 
-Each simulated year:
-1. Sample λ → draw event count \(N\)  
-2. Sample σ, ξ → simulate exceedances  
-3. Convert exceedances to flow and loss  
-4. Aggregate annual losses  
+Each iteration:
+1. Sample λ → event count
+2. Sample σ, ξ → severity
+3. Simulate flows
+4. Aggregate annual loss
 
-Repeated 10,000 times to produce a distribution of outcomes.
+10,000 simulations used.
 
-**Key principle:**  
-Both **aleatory** and **epistemic uncertainty** are propagated through the system.
+Both:
+- aleatory uncertainty
+- epistemic uncertainty
+
+are propagated.
 
 ---
 
 ## Current Limitations
 
 ### 1. Tail Uncertainty (ξ)
-- Weakly identified due to limited extreme data  
-- Sensitive to prior assumptions  
+Weak identification due to sparse extremes.
 
----
+### 2. No Physical Loss Model
+Flow → Depth → Damage → Loss is missing.
 
-### 2. No Physical Loss Mapping
-- Model outputs flow (m³/s), not impact  
-- Missing pipeline:
-\[
-\text{Flow} \rightarrow \text{Depth} \rightarrow \text{Damage} \rightarrow \text{Loss}
-\]
-
----
-
-### 3. Stationarity Assumption
-- Assumes constant parameters over time  
-- Ignores climate, land use, and infrastructure changes  
+### 3. Stationarity
+Assumes constant climate and infrastructure.
 
 ---
 
 ## Structural Roadmap
 
-**V1 (Current):**
-- Bayesian Poisson + GPD  
-- Posterior predictive validation  
-- Monte Carlo simulation  
-- Proxy loss function  
-
----
-
-**V1.1 (Next):**
-- Improve ξ robustness (priors, sensitivity)  
-- Introduce depth–damage relationships  
-
----
-
-**V1.5:**
-- Detect non-stationarity  
-- Refine thresholds  
-
----
-
-**V2:**
-- Climate-driven non-stationary models  
-- Rainfall-conditioned severity  
-- Partial physical flood mapping  
-
----
-
-**V2+:**
-- Stochastic Parent–child event structure  
-- Spatial modeling  
-- Full hazard-to-loss pipeline  
+- V1: Bayesian Poisson + GPD
+- V1.1: improve ξ stability
+- V1.5: threshold refinement
+- V2: non-stationary climate model
+- V2+: spatial + parent–child structure
 
 ---
 
 ## Key Philosophy
 
-- **Uncertainty is explicit** — wide credible intervals reflect reality  
-- **Modular design** — each component can be improved independently  
-- **Physical grounding** — assumptions tied to hydrology, not just statistical fit  
-- **Forward-looking** — model represents plausible futures, not just past observations  
+- Uncertainty is explicit, not hidden
+- Model structure > parameter fitting
+- Physical interpretability matters
+- Model represents futures, not just history
 
 ---
 
 **Summary:**  
-The current model provides a statistically sound baseline for flood frequency and severity, with transparent uncertainty quantification. However, meaningful risk estimation requires improvements in tail identification, physical interpretation, and economic mapping.
+A baseline Bayesian extreme value model with full uncertainty propagation. Strong on structure and transparency, but future work must focus on tail stability, physical loss modeling, and non-stationarity.
 
 ---
 
-*Last updated: April 2026. V1 baseline.*
+*Last updated: April 2026*
