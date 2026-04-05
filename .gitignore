@@ -7,8 +7,7 @@ data/
 **/.DS_Store
 R_Stan_Scripts/gpd_model
 R_Stan_Scripts/poisson_model
-/*_files/
-/*_cache/
-/libs/
-/figure_html/
-01_Posterior_Predictive_Checks_files/
+_preview_notebook_files/
+
+/.quarto/
+**/*.quarto_ipynb
