@@ -16,3 +16,4 @@ model {
   // Likelihood
   N ~ poisson(lambda);    // stan automatically computes the log prior and log likehood to obtain posterior shape
 }
+

@@ -79,7 +79,8 @@ mcmc_trace(
 
 
 # Prior * Likehood -> Posterior Plot
-{pois_draws_array <- as_draws_df(pois_draws_array)
+{
+  pois_draws_array <- as_draws_df(pois_draws_array)
 gpd_draws_array <- as_draws_df(gpd_draws_array)
 
     # Grids for each parameter
@@ -93,30 +94,31 @@ sigma_fix  <- mean(gpd_draws$sigma)
 xi_fix     <- mean(gpd_draws$xi)
 
 # Poisson ~ λ
-lik_lambda <- sapply(lambda_vals, function(l) {
-  exp(sum(dpois(freq_df$n_events, l, log = TRUE)))
+log_lik_lambda <- sapply(lambda_vals, function(l) {
+  sum(dpois(freq_df$n_events, l, log = TRUE))
 })
-lik_lambda <- lik_lambda / max(lik_lambda)
+
+lik_lambda <- exp(log_lik_lambda - max(log_lik_lambda))
 
 # GPD ~ σ
-lik_sigma <- sapply(sigma_vals, function(s) {
-  exp(sum(dgpd(exceedances,
+log_lik_sigma <- sapply(sigma_vals, function(s) {
+  sum(dgpd(exceedances,
                loc = 0,
                scale = s,
                shape = xi_fix,
-               log = TRUE)))
+               log = TRUE))
 })
-lik_sigma <- lik_sigma / max(lik_sigma)
+lik_sigma <- exp(log_lik_sigma - max(log_lik_sigma))
 
 # GPD ~ ξ
-lik_xi <- sapply(xi_vals, function(x) {
-  exp(sum(dgpd(exceedances,
+log_lik_xi <- sapply(xi_vals, function(x) {
+  sum(dgpd(exceedances,
                loc = 0,
                scale = sigma_fix,
                shape = x,
-               log = TRUE)))
+               log = TRUE))
 })
-lik_xi <- lik_xi / max(lik_xi)
+lik_xi <- exp(log_lik_xi - max(log_lik_xi))
 
 prior_lambda <- dgamma(lambda_vals, shape = 2, rate = 1)
 prior_sigma  <- dgamma(sigma_vals, shape = 2, rate = 0.1)
@@ -180,19 +182,19 @@ ggplot() +
 }
 ```
 
-The trace plots confirm that all parameters have converged and are well-sampled. However, the shape parameter ξ shows higher posterior variance, indicating that while the inference is computationally stable, tail behavior remains weakly identified due to limited extreme observations.
+The trace plots confirm that all parameters have converged and are well-sampled. However, the shape parameter ξ shows higher posterior variance, indicating that while the inference is computationally stable, tail behavior remains weakly identified.
 
 **Interpretation of Prior, Likelihood, and Posterior**
 
 The prior, likelihood, and posterior distributions illustrate how information is updated within the Bayesian framework.
 
-The priors are intentionally weak and diffuse, reflecting limited prior knowledge and allowing the data to drive inference. As a result, the likelihood plays a dominant role in shaping the posterior distribution.
+The priors are intentionally weak, reflecting limited prior knowledge and allowing the data to drive inference. As a result, the posterior is primarily informed by the likelihood, indicating that the data is sufficiently informative for these parameters
 
 For parameters such as λ (event frequency) and σ (scale), the likelihood is relatively concentrated, indicating that these parameters are well-identified by the data. Consequently, the posterior distributions closely align with the likelihood, with only minor influence from the prior.
 
-In contrast, the shape parameter ξ exhibits substantially greater uncertainty. The likelihood for ξ is relatively flat due to the limited number of extreme observations, meaning the data provides weak information about tail behavior. As a result, the posterior remains diffuse and is more sensitive to prior assumptions.
+In contrast, the shape parameter ξ exhibits greater uncertainty. The likelihood for ξ is relatively flat indicating weak identifiability, just like what the trace plots showed. As a result, the posterior remains wide and is more sensitive to prior assumptions.
 
-This highlights a key challenge in extreme value modeling: while central behavior can be estimated reliably, tail behavior is inherently data-sparse and difficult to identify. The Bayesian framework makes this uncertainty explicit, rather than masking it through point estimates.
+**This highlights a key challenge in extreme value modeling**: while central behavior can be estimated reliably, tail behavior is inherently data-sparse and difficult to identify. The Bayesian framework makes this uncertainty explicit, rather than masking it through point estimates.
 
 # Simulate From Posterior
 ```{r}
@@ -288,12 +290,16 @@ ggplot() +
   )
 ```
 
+**Note**: I was originally going to just do the histograms but I realized I needed to dive deeper into the tail region, where the simulated and observed posterior values weren't matching up. So i dove deeper with a survival function comparison.
+
 The survival function comparison shows strong agreement between observed and simulated data in the central region, indicating that the scale parameter (σ) is well-identified and accurately captures the typical magnitude of exceedances.
 
-However, divergence in the upper tail reflects sensitivity to the shape parameter (ξ), which governs the rate of tail decay. The variability observed in the simulated tail arises from posterior uncertainty in ξ, rather than systematic bias, indicating that **extreme behavior is weakly identified by the available data**.
+However, divergence in the upper tail reflects sensitivity to the shape parameter (ξ), which governs the rate of tail decay. The variability observed in the simulated tail arises from posterior uncertainty in ξ, rather than systematic bias, indicating that **extreme behavior is weakly identified by the available data or my threshold choice**.
+
 
 # Numerical Summary Statistics
 ```{r}
+library(evd)
 
 # Observed stats
 obs_stats <- tibble(
@@ -311,14 +317,52 @@ sim_stats <- tibble(
 
 obs_stats
 sim_stats
+
+# Distribution of simulated 99th percentile
+sim_p99 <- replicate(500, {
+  sample_data <- rgpd(
+    n = length(exceedances),
+    loc = 0,
+    scale = sample(posterior_sample$sigma, 1),
+    shape = sample(posterior_sample$xi, 1)
+  )
+  quantile(sample_data, 0.99)
+})
+
+ggplot() +
+  geom_histogram(aes(x = sim_p99), bins = 30, fill = "red", alpha = 0.6) +
+  geom_vline(xintercept = quantile(exceedances, 0.99), linetype = "dashed") +
+  labs(
+    title = "Uncertainty in Extreme Quantiles (99th Percentile)",
+    subtitle = "Dashed line = observed 99th quantile",
+    x = "99th Percentile",
+    y = "Frequency"
+  )
 ```
 
 The large difference in maximum values reflects the sensitivity of extreme outcomes to the shape parameter (ξ), rather than a failure of the model to reproduce observed data.
 
-# Summary 
+# Summary
 
-The posterior predictive simulations reproduce the central behavior and upper quantiles of the observed data well, but generate larger extreme values. This divergence is driven by uncertainty in the shape parameter (ξ), which controls tail behavior.
+The posterior predictive checks demonstrate that while the model captures central behavior well, uncertainty in the shape parameter (ξ) leads to **substantial variability** in **extreme outcomes**, reflecting fundamental limits of inference under **data sparsity** rather than model misspecification.
 
 Even small positive values of ξ imply a heavy-tailed distribution, meaning the model assigns non-negligible probability to extreme events beyond those observed historically. As a result, the model does not simply replicate past data, but represents a range of plausible future outcomes under the inferred process.
 
-This highlights a fundamental limitation of extreme value modeling: tail behavior is weakly identified due to data sparsity. The Bayesian framework makes this uncertainty explicit, allowing it to propagate into downstream risk estimates such as AEP curves.
+Importantly, the observed extreme values fall within high-density regions of the simulated posterior distribution, indicating that they are not unusual under the model. However, the posterior distribution remains wide, reflecting the fact that the available data provides limited information about tail behavior. ~ see **numerical summary statistics header **
+
+# Next Steps
+
+To address the ξ parameter uncertainty, the next stage of development will focus on introducing additional structure and information into the model:
+
+ - **Improve tail estimation (ξ)**:
+Incorporate physically-informed priors and/or hierarchical structure (e.g., spatial pooling across locations) to better constrain tail behavior.
+
+
+- **Move beyond stationarity**:
+Extend the model to allow parameters to vary over time, linking frequency and severity to covariates such as rainfall and climate drivers.
+
+
+- **Build a physical-economic pipeline**:
+Develop a transformation from flow exceedance to economic loss through intermediate layers (e.g., flow -> water depth -> damage -> exposure), enabling meaningful risk quantification.
+
+These extensions will allow the model to move from a statistically sound baseline toward a more realistic and decision-relevant flood risk framework.

@@ -30,3 +30,4 @@ model {
     target += gpd_lpdf(x[n] | sigma, xi);
   }
 }
+
