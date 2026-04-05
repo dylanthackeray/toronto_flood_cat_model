@@ -4,11 +4,23 @@ An open-source Bayesian extreme value model for flood risk on Toronto's Don Rive
 
 ---
 
-## What This Is
+## What This Is / Motivation
 
-Canada has no national flood map. Flood insurance became widely available only after 2015. Catastrophe models that price flood risk are expensive and closed-source—pricing out the small insurers and municipalities that need them most.
+Canada lacks a unified, publicly accessible national flood risk model. At the same time, modern catastrophe models used to price and manage flood risk are proprietary, expensive, and largely inaccessible to smaller insurers, municipalities, and researchers.
 
-This project builds something different: a transparent, reproducible Bayesian model that estimates flood frequency and severity with full uncertainty quantification. It's designed to be readable, defensible, and improvable by anyone interested in flood risk.
+This creates a gap between who needs risk insight and who can actually access it.
+
+This project is an attempt to close that gap.
+
+It builds a transparent, reproducible Bayesian framework to model flood frequency and severity, with a focus on:
+
+ - explicit uncertainty quantification
+ - interpretability of assumptions
+ - modular, extensible design
+
+Rather than producing a single deterministic estimate, the model represents a distribution of plausible flood outcomes, making uncertainty -  especially in extreme events - central to the analysis.
+
+The goal is not to replicate commercial catastrophe models, but to provide a credible, open foundation that others can inspect, challenge, and build upon.
 
 ---
 
@@ -29,7 +41,7 @@ The model separates flood risk into two components:
 - Result: σ ≈ 13.2 m³/s, ξ ≈ -0.12 [both with uncertainty intervals]
 
 **Pipeline:**
-Joint posterior over (λ, σ, ξ) → 10,000 Monte Carlo samples → distribution of plausible flood seasons → Annual Exceedance Probability (AEP) curve.
+Joint (independent) posterior over (λ, σ, ξ) → 10,000 Monte Carlo samples → distribution of plausible flood seasons → Annual Exceedance Probability (AEP) curve.
 
 ---
 
@@ -57,26 +69,6 @@ Joint posterior over (λ, σ, ξ) → 10,000 Monte Carlo samples → distributio
 ### 📋 Roadmap (V1.1 → V2+)
 
 See [Structural Roadmap](METHODOLOGY.md#structural-roadmap) in METHODOLOGY.md for full detail.
-
-**V1.1 (Immediate):**
-- Shape parameter (ξ) robustness: sensitivity analysis on priors
-- Loss pipeline: depth mapping + depth-damage curves + exposure data
-- Economic loss output
-
-**V1.5 (Short term):**
-- Non-stationarity diagnostics (trend detection, changepoint analysis)
-- Bayesian grid search for statistical threshold (MRL diagnostics)
-- Loss model refinement and calibration
-
-**V2 (Medium term):**
-- Non-stationary frequency model with climate/rainfall covariates
-- Frequency-severity dependence structure
-- Partial hydraulic model (1D or lookup table)
-
-**V2+ (Long term):**
-- Parent-child framework (climate → rainfall → event generation)
-- Spatial model across Don watershed
-- Upstream-downstream correlation
 
 ---
 
@@ -143,8 +135,10 @@ install.packages(c(
   "bayesplot",   # MCMC diagnostics
   "ggplot2"      # Visualization
 ))
+\`\`\`
 
 # Download HYDAT database (run once)
+\`\`\`r
 library(tidyhydat)
 download_hydat()
 \`\`\`
@@ -200,12 +194,11 @@ Every statistical choice (prior, threshold, declustering window) is justified in
 and code comments. You should be able to disagree with a choice and modify it.
 
 **Uncertainty quantification over point estimates:**  
-If tail behavior is uncertain (it is), that uncertainty appears in credible intervals. 
+If tail behavior is uncertain (it is), that uncertainty appears in the model. 
 No false precision.
 
 **Modular improvement:**  
-V1 is a stationary baseline. Each component (frequency, severity, loss) can be upgraded 
-independently as better data or models emerge.
+V1 is a stationary baseline. Each component (frequency, severity, loss) can and will be upgraded as better data emerges and as I progress throughout my undergrad.
 
 **Physical reasoning:**  
 Priors and thresholds are grounded in hydrology and watershed characteristics, not just 
@@ -227,9 +220,9 @@ This project was developed as an independent research project outside of coursew
 - Physical justifications for thresholds and priors
 - Posterior predictive check design and interpretation
 - Critical evaluation of model limitations
-- Roadmap prioritization
+- Roadmap Construction and Implementation
 
-The model represents a lot of trial and error on paper, conversations with hydrologists and actuaries, and careful reading of extreme value theory literature.
+The model represents a lot of trial and error on paper and careful reading of extreme value theory, hydrology, bayesian statistics, and climate change literature.
 
 ---
 
@@ -255,7 +248,7 @@ If you use this model or adapt it for your own work, please cite:
 
 \`\`\`
 Thackeray, D. (2026). Don River Flood Risk Model (Version 1.0). 
-Retrieved from https://github.com/[your-repo]
+Retrieved from https://github.com/[toronto_flood_cat_model]
 \`\`\`
 
 ---
