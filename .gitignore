@@ -10,3 +10,4 @@ R_Stan_Scripts/poisson_model
 *.html
 _preview_notebook_files/
 _quarto/
+.claude/
