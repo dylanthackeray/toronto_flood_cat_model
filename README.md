@@ -125,7 +125,7 @@ See [Posterior Predictive Checks](METHODOLOGY.md#posterior-predictive-checks) fo
 
 ### Requirements
 
-\`\`\`r
+```r
 install.packages(c(
   "tidyhydat",   # Water data access
   "tidyverse",   # Data wrangling
@@ -135,13 +135,13 @@ install.packages(c(
   "bayesplot",   # MCMC diagnostics
   "ggplot2"      # Visualization
 ))
-\`\`\`
+```
 
 # Download HYDAT database (run once)
-\`\`\`r
+```r
 library(tidyhydat)
 download_hydat()
-\`\`\`
+```
 
 ### Workflow
 
