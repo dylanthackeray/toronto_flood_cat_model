@@ -1,123 +1,121 @@
 # Don River Flood Risk Model
 
-An open-source Bayesian extreme value model for flood risk on Toronto's Don River. Built as an independent research project to develop accessible catastrophe modeling outside the commercial insurance space.
+An open-source Bayesian extreme value model for flood risk on Toronto's Don River. Built as an independent research project to develop transparent catastrophe modeling outside the commercial insurance space.
 
 ---
 
-## What This Is / Motivation
+## What This Is
 
-Canada lacks a unified, publicly accessible national flood risk model. At the same time, modern catastrophe models used to price and manage flood risk are proprietary, expensive, and largely inaccessible to smaller insurers, municipalities, and researchers.
+Canada lacks a unified, publicly accessible national flood risk model. Existing catastrophe models are proprietary, expensive, and largely inaccessible to smaller insurers, municipalities, and researchers.
 
-This creates a gap between who needs risk insight and who can actually access it.
-
-This project is an attempt to close that gap.
-
-It builds a transparent, reproducible Bayesian framework to model flood frequency and severity, with a focus on:
-
- - explicit uncertainty quantification
- - interpretability of assumptions
- - modular, extensible design
-
-Rather than producing a single deterministic estimate, the model represents a distribution of plausible flood outcomes, making uncertainty -  especially in extreme events - central to the analysis.
+This project is an attempt to close that gap — a transparent, reproducible Bayesian framework that models flood frequency and severity with full uncertainty quantification. Rather than producing a single deterministic estimate, the model represents a distribution of plausible flood outcomes, making uncertainty in extreme events central to the analysis.
 
 The goal is not to replicate commercial catastrophe models, but to provide a credible, open foundation that others can inspect, challenge, and build upon.
 
 ---
 
-## How It Works (V1 Baseline)
+## How It Works
 
-The model separates flood risk into two components:
+The model separates flood risk into two independently estimated components.
 
-**Frequency:** How often do floods occur?
-- Poisson(λ) model for annual event counts
-- λ ~ Gamma(α, β) prior encoding physical prior knowledge
-- Fitted to 63 years of independent flood events (1961–2023)
-- Result: λ ≈ 1.55 events/year [95% CI: 1.15–2.00]
+**Frequency** — How often do floods occur?
 
-**Severity:** When a flood occurs, how large is it?
-- Generalized Pareto Distribution (σ, ξ) for exceedances above threshold
-- σ ~ Gamma(2, 0.1) and ξ ~ N(-0.3, 0.3) priors with physical justification
-- Fitted to 54 independent exceedances (m³/s above u_physical)
-- Result: σ ≈ 13.2 m³/s, ξ ≈ -0.12 [both with uncertainty intervals]
+$$N \sim \text{Poisson}(\lambda), \quad \lambda \sim \text{Gamma}(2, 2)$$
+
+- Fitted to all 63 years of record (1961–2023), including zero-event years
+- Prior: Gamma(2, 2), mean = 1 event/year — consistent with observed Don River rate
+
+**Severity** — When a flood occurs, how large is it?
+
+$$X_i \sim \text{GPD}(0, \sigma, \xi), \quad X_i = Q_{\text{peak}} - u$$
+
+- $\sigma \sim \text{Gamma}(2, 0.1)$, $\xi \sim \mathcal{N}(-0.1, 0.2)$
+- Prior on ξ follows Martins & Stedinger (2001): centered slightly negative (bounded tail behavior), upper-constrained at 0.5 (finite variance requirement)
+- Fitted to 54 independent exceedances above u = 40 m³/s
 
 **Pipeline:**
-Joint (independent) posterior over (λ, σ, ξ) → 10,000 Monte Carlo samples → distribution of plausible flood seasons → Annual Exceedance Probability (AEP) curve.
+Joint posterior over (λ, σ, ξ) → Monte Carlo simulation → distribution of plausible flood seasons → Annual Exceedance Probability (AEP) curve.
 
 ---
 
-## Current Status (V1 Complete)
+## Current Status
 
-### ✅ Completed
+### Completed
 
-- [x] Data collection and cleaning (HYDAT 1961–2023)
-- [x] Exploratory data analysis
-- [x] Physical threshold selection (u_physical = 40 m³/s)
-- [x] Statistical threshold selection (u_statistical = p99.9)
-- [x] Event definition and declustering (3-day independence window)
-- [x] Frequency model (Poisson with Gamma prior)
-- [x] Severity model (GPD with informed priors)
-- [x] Hamiltonian Monte Carlo fitting (Stan, 4 chains × 2000 iter)
-- [x] Posterior predictive checks (central tendency + tail behavior)
-- [x] MCMC diagnostics (trace plots, R-hat, ESS)
+- Data collection and cleaning (HYDAT 1961–2023)
+- Exploratory data analysis
+- Physical threshold selection (u = 40 m³/s, justified against rating curve and historical flood events)
+- Event definition and declustering (3-day independence window, 54 independent events)
+- Bayesian Poisson frequency model (Stan/HMC)
+- Bayesian GPD severity model (Stan/HMC)
+- MCMC diagnostics (R-hat, ESS, trace plots, divergence checks)
+- Posterior predictive checks (central tendency + tail behavior)
+- LOO cross-validation (via `loo` package, using `generated_quantities` log-likelihood)
+- V1.1 model corrections (see below)
 
-### 🔄 In Progress
+### In Progress
 
-- [ ] Loss function pipeline (flow → depth → exposure → loss)
-  - Current status: placeholder power-law function (inadequate)
-  - Next step: integrate depth-damage curves from literature
+- Loss function pipeline (flow → depth → exposure → loss)
+  - Current: placeholder power-law function
+  - Next: depth-damage curves from literature
 
-### 📋 Roadmap (V1.1 → V2+)
+### Roadmap
 
-See [Structural Roadmap](METHODOLOGY.md#structural-roadmap) in METHODOLOGY.md for full detail.
-
----
-
-## Key Findings from V1
-
-### What Works Well
-
-- **Central tendency:** Posterior predictive mean matches observed frequency (1.56 → 1.61 events/year)
-- **Upper quantiles:** p95 of exceedances matches observed data (42.2 → 42.9 m³/s)
-- **MCMC convergence:** All R-hat values < 1.01, effective sample sizes adequate
-
-### Where Uncertainty is Large
-
-- **Tail shape (ξ):** Weakly identified with 54 data points
-  - 95% credible interval: [-0.35, +0.10]
-  - Posterior allows plausible bounds from ~75 m³/s (strong bounded tail) to unbounded
-  - This is **honest**, not a problem—extreme value theory predicts beyond observed extremes
-  
-- **Extreme events:** Posterior predictive maximum can be 2.8× observed max (68 → 188 m³/s)
-  - This is **expected and correct** given ξ uncertainty
-  - Reflects data sparsity in the tail, not model failure
-
-See [Posterior Predictive Checks](METHODOLOGY.md#posterior-predictive-checks) for full diagnostics.
+See [METHODOLOGY.md](METHODOLOGY.md) for the full roadmap from V1.1 to V2+.
 
 ---
 
-## Limitations (V1)
+## V1.1 Model Corrections
 
-**Honest assessment of what is and isn't done:**
+Three bugs were identified and corrected after the initial V1 fit. The stored posteriors have been updated to reflect these fixes.
 
-1. **Tail Uncertainty**  
-   ξ is weakly identified. Extreme tail probabilities are sensitive to prior assumptions. 
-   Mitigation planned for V1.1 (sensitivity analysis + literature priors).
+**1. Zero-truncated Poisson (critical)**
+`03_model_dataset.R` was only passing years with observed events (n=34) to Stan instead of all 63 years of record. This fit a zero-truncated Poisson and inflated λ from the true rate of ~0.86 to ~1.55. Fixed by completing the year range and zero-filling inactive years.
 
-2. **No Flow-to-Impact Link**  
-   Model outputs m³/s. Decision-makers need economic loss (flood depth → property damage → $).
-   Current proxy function is inadequate. Full pipeline in V1.1.
+**2. GPD shape parameter constraint truncated its own prior**
+The Stan model had `real<lower=-0.3> xi` with prior Normal(-0.3, 0.3). The hard lower bound at -0.3 was the prior mean, silently cutting the left half of the prior distribution. Fixed by removing the lower bound — the GPD likelihood naturally becomes -∞ when ξ < -σ/max(x), so the data constrains the lower tail directly. Upper bound changed to 0.5 (Martins & Stedinger finite-variance requirement). Prior updated to Normal(-0.1, 0.2).
 
-3. **Stationarity Assumption**  
-   Assumes constant λ, σ, ξ over 1961–2023 and future. Ignores climate change, urban 
-   development, and infrastructure changes. Trend diagnostics in V1.5, non-stationary 
-   model in V2.
+**3. No generated quantities in either Stan model**
+Neither model had a `generated_quantities` block, preventing LOO cross-validation and native posterior predictive sampling from Stan. Both models now output `log_lik` (for `loo`) and `y_rep`/`n_rep` (for PPCs).
 
-4. **Single Gauge**  
-   No spatial variation across Don watershed. Planned for V2+.
+---
 
-5. **Independence Assumption**  
-   Frequency and severity are modeled separately. In reality, large rainfall events can 
-   generate both high frequency and high severity. V2 will model this dependence.
+## Key Results
+
+Results below are from the corrected V1.1 fit. The posterior λ dropped substantially after fixing the zero-truncation bug.
+
+| Parameter | Posterior Mean | 95% CI |
+|---|---|---|
+| λ (events/year) | — | — |
+| σ (GPD scale, m³/s) | — | — |
+| ξ (GPD shape) | — | — |
+
+*Run the pipeline to populate these values. See `METHODOLOGY.md` for interpretation.*
+
+### What the model gets right
+
+- Central tendency of exceedances is well-captured (σ is data-identified)
+- Frequency model converges cleanly with adequate ESS
+- MCMC diagnostics are clean across all parameters (R-hat < 1.01)
+
+### Where uncertainty is large
+
+- **Tail shape (ξ):** Weakly identified with 54 observations. The posterior spans bounded (ξ < 0) and unbounded (ξ > 0) tails. This is honest, not a failure — extreme value theory predicts beyond observed extremes.
+- **Extreme events:** Posterior predictive maximum substantially exceeds the observed record. Expected given ξ uncertainty.
+
+---
+
+## Limitations
+
+1. **Tail uncertainty** — ξ remains weakly identified at n=54. Prior sensitivity analysis planned for V1.1.
+
+2. **No physical loss pipeline** — The model outputs flow in m³/s. A full risk model requires flow → depth → damage → loss. The current power-law proxy is inadequate.
+
+3. **Stationarity** — λ, σ, ξ are assumed constant over 1961–2023. Climate change, urban development, and infrastructure changes are not modeled. Non-stationary extension planned for V2.
+
+4. **Single gauge** — No spatial variation across the Don watershed.
+
+5. **Frequency–severity independence** — Modeled separately. Correlation planned for V2.
 
 ---
 
@@ -127,109 +125,88 @@ See [Posterior Predictive Checks](METHODOLOGY.md#posterior-predictive-checks) fo
 
 ```r
 install.packages(c(
-  "tidyhydat",   # Water data access
-  "tidyverse",   # Data wrangling
+  "tidyhydat",   # HYDAT water data access
+  "tidyverse",
   "evd",         # GPD tools
   "cmdstanr",    # HMC via Stan
   "posterior",   # Draw processing
   "bayesplot",   # MCMC diagnostics
-  "ggplot2"      # Visualization
+  "loo",         # LOO cross-validation
+  "here"
 ))
-```
+
+# Install CmdStan (run once)
+cmdstanr::install_cmdstan()
 
 # Download HYDAT database (run once)
-```r
-library(tidyhydat)
-download_hydat()
+tidyhydat::download_hydat()
 ```
 
-### Workflow
+### Run the pipeline
 
-1. **Data prep:** [R_scripts/01_data_collection.R](R_scripts/01_data_collection.R)
-   - Downloads HYDAT data for Don River at Todmorden (02HC024)
-   - Cleans and declusters to produce independent events
+```r
+# 1. Data prep (download + clean HYDAT, build rating curve)
+source("R_scripts/01_data_collection.R")
+source("R_scripts/02_data_cleaning.R")
 
-2. **Exploration:** [R_notebooks/01_EDA.Rmd](R_notebooks/01_EDA.Rmd)
-   - Summary statistics, time series, histograms
-   - Visual assessment of trend and structure
+# 2. Threshold selection and event extraction
+# See R_notebooks/02_physical_threshold_selection.Rmd
 
-3. **Threshold selection:** [R_notebooks/02_physical_threshold_selection.Rmd](R_notebooks/02_physical_threshold_selection.Rmd)
-   - Justifies u_physical = 40 m³/s from rating curve and historical flood dates
-   - Determines u_statistical from flow percentiles
+# 3. Fit both Bayesian models (also regenerates model datasets)
+source("R_scripts/05_run_bayesian_pipeline.R")
 
-4. **Model fitting:** [R_scripts/05_run_bayesian_pipeline.R](R_scripts/05_run_bayesian_pipeline.R)
-   - Fits Poisson frequency model (Stan)
-   - Fits GPD severity model (Stan)
-   - Extracts posterior draws
+# 4. Posterior predictive checks
+# See R_notebooks/Posterior Predictive Checks/01_Posterior_Predictive_Checks.Rmd
+```
 
-5. **Validation:** [R_notebooks/Posterior Predictive Checks/01...](R_notebooks/Posterior%20Predictive%20Checks/01_Posterior_Predictive_Checks.Rmd)
-   - Compares observed vs simulated event counts and exceedances
-   - Tail behavior diagnostics
-   - Uncertainty quantification
+### Workflow notebooks
 
-6. **Simulation / Loss Function:** (In progress)
-   - Monte Carlo engine to produce AEP curves and loss distributions
+| Notebook | Purpose |
+|---|---|
+| `R_notebooks/01_EDA.Rmd` | Summary statistics, time series, tail diagnostics |
+| `R_notebooks/02_physical_threshold_selection.Rmd` | Justifies u = 40 m³/s |
+| `R_notebooks/03_flood_events.csv_analysis.Rmd` | Event dataset exploration |
+| `R_notebooks/04_frequentist_model_analysis.Rmd` | Frequentist baseline comparison |
+| `R_notebooks/05_bayesian_frequentist_comparison.Rmd` | Bayesian vs frequentist |
+| `R_notebooks/Posterior Predictive Checks/01_...Rmd` | PPC, tail checks, LOO |
 
 ---
 
 ## Data Sources
 
-**Primary:** Water Survey of Canada (HYDAT)  
+**Primary:** Water Survey of Canada (HYDAT)
 - Station: Don River at Todmorden (02HC024)
 - Period: 1961–2023 (63 years)
-- Access: `r tidyhydat::get_hydat_stations()` and `r get_hy_data()`
 
-**Secondary:** Environment Canada Water Office  
-- Water level data 2002–2023 (for rating curve construction)
-- Used to understand discharge-stage relationship
-
-Full data documentation in [METHODOLOGY.md](METHODOLOGY.md#data-sources).
+**Secondary:** Environment Canada Water Office
+- Water level data 2002–2023, used to construct the rating curve and justify u_physical
 
 ---
 
 ## Design Philosophy
 
-**Transparency over complexity:**  
-Every statistical choice (prior, threshold, declustering window) is justified in METHODOLOGY.md 
-and code comments. You should be able to disagree with a choice and modify it.
+**Transparency over complexity:** Every statistical choice — prior, threshold, declustering window — is justified in `METHODOLOGY.md` and code comments. You should be able to disagree with a choice and modify it.
 
-**Uncertainty quantification over point estimates:**  
-If tail behavior is uncertain (it is), that uncertainty appears in the model. 
-No false precision.
+**Uncertainty quantification over point estimates:** If tail behavior is uncertain (it is), that uncertainty appears in the model. No false precision.
 
-**Modular improvement:**  
-V1 is a stationary baseline. Each component (frequency, severity, loss) can and will be upgraded as better data emerges and as I progress throughout my undergrad.
+**Modular improvement:** Each component (frequency, severity, loss) is independently replaceable as better data and methods emerge.
 
-**Physical reasoning:**  
-Priors and thresholds are grounded in hydrology and watershed characteristics, not just 
-data-driven optimization.
+**Physical reasoning:** Priors and thresholds are grounded in hydrology, not just data-driven optimization.
 
 ---
 
-## A Note on Process & AI Use
+## A Note on AI Use
 
-This project was developed as an independent research project outside of coursework.
+This project was developed as an independent research project.
 
-**AI tools were used for:**
-- Coding assistance and syntax checking
-- Document formatting and organization
-- Code refactoring for readability
-
-**All of the following are my own work:**
-- Statistical reasoning and modeling decisions
-- Physical justifications for thresholds and priors
-- Posterior predictive check design and interpretation
-- Critical evaluation of model limitations
-- Roadmap Construction and Implementation
-
-The model represents a lot of trial and error on paper and careful reading of extreme value theory, hydrology, bayesian statistics, and climate change literature.
+AI tools were used for coding assistance, syntax checking, and document formatting. All statistical reasoning, physical justifications, modeling decisions, prior choices, and critical evaluation of results are my own.
 
 ---
 
 ## Creator
 
-**Dylan Thackeray**  
-Actuarial Science & Statistics, University of Toronto  
+**Dylan Thackeray**
+Actuarial Science & Statistics, University of Toronto
 Working toward ACAS | Exam P — Summer 2026
 
 Contact: dylanthackeray55@gmail.com
@@ -238,18 +215,15 @@ Contact: dylanthackeray55@gmail.com
 
 ## License
 
-This project is licensed under the MIT License. See [LICENSE](LICENSE) for details.
+MIT License. See [LICENSE](LICENSE).
 
 ---
 
 ## Citation
 
-If you use this model or adapt it for your own work, please cite:
-
-Thackeray, D. (2026). Don River Flood Risk Model (Version 1.0). 
-Retrieved from https://github.com/[dylan_thackeray/toronto_flood_cat_model]
+Thackeray, D. (2026). *Don River Flood Risk Model* (Version 1.1).
+GitHub: https://github.com/dylanthackeray/toronto_flood_cat_model
 
 ---
 
-*Last updated: April 2026. This represents V1 baseline—a stationary model with full 
-uncertainty quantification over frequency and severity. See roadmap for planned extensions.*
+*Last updated: April 2026. V1.1 — corrected Poisson zero-truncation, GPD prior constraint, and added LOO-CV. See roadmap in METHODOLOGY.md for planned extensions.*

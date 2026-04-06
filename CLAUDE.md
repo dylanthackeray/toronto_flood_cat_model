@@ -76,18 +76,25 @@ This produces a **distribution of possible flood seasons**.
 
 ---
 
-## Current Posterior Estimates (V1)
+## Current Posterior Estimates (V1 — STALE, needs re-fit)
 
-| Parameter | Posterior Mean | 95% Credible Interval |
-|-----------|---------------|----------------------|
-| λ (events/yr) | 1.55 | [1.15, 2.00] |
-| σ (GPD scale) | 13.2 | [10.1, 17.2] |
-| ξ (GPD shape) | -0.12 | [-0.35, 0.10] |
+> ⚠️ These estimates are from a **buggy V1 fit** and should not be used as reference.
+> Three issues were corrected in the model that will shift posteriors:
+> 1. Frequency data was zero-truncated (only 34 active years passed to Stan, not all 63).
+>    This inflated λ from the true rate ~0.86 to ~1.55.
+> 2. GPD ξ had `<lower=-0.3>` hard constraint, truncating the Normal(-0.3,0.3) prior at its
+>    mean. Prior replaced with Normal(-0.1,0.2), upper-only constraint at 0.5.
+> 3. Neither model had generated_quantities for LOO-CV.
+> Re-run `03_model_dataset.R` then `05_run_bayesian_pipeline.R` to get corrected posteriors.
 
-- Threshold: u_physical = 40 m³/s (event definition), u_statistical = p99.9 of exceedances
+| Parameter | Old (buggy) mean | Expected direction after fix |
+|-----------|-----------------|------------------------------|
+| λ (events/yr) | 1.55 | ↓ toward ~0.86 (true rate) |
+| σ (GPD scale) | 13.2 | approximately stable |
+| ξ (GPD shape) | -0.12 | may shift, wider CI with correct prior |
+
+- Threshold: u_physical = 40 m³/s
 - Data: 63 years (1961–2023), 54 independent declustered flood events
-- MCMC: 4 chains × 2000 post-warmup draws, all R-hat < 1.01
-- Posterior predictive max: ~188 m³/s (2.8× observed max of 68 m³/s — expected given ξ uncertainty)
 
 ⚠️ ξ is weakly identified — posterior spans both bounded (ξ < 0) and unbounded (ξ > 0) tails. Prior-sensitive. Always flag this when proposing severity model changes.
 

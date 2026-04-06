@@ -11,3 +11,5 @@ R_Stan_Scripts/poisson_model
 _preview_notebook_files/
 _quarto/
 .claude/
+/.quarto/
+**/*.quarto_ipynb

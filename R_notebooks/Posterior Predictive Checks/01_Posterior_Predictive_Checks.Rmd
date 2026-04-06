@@ -1,365 +1,241 @@
 ---
-title: "#1 Posterior Predctive Checks on Base Bayesian Model - Don River"
-author: "Dylan"
+title: "Posterior Predictive Checks — Don River Flood Risk Model"
+author: "Dylan Thackeray"
 date: "`r Sys.Date()`"
 output: html_document
 ---
 
-# Load Observed Data and Bayesian Models
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE, warning = FALSE, message = FALSE)
+```
+
+# Setup
 
 ```{r}
 library(tidyverse)
 library(here)
-library(evd)
+library(bayesplot)
 library(posterior)
+library(loo)
+library(evd)
 
 set.seed(1234)
 
-# Load observed data
+# Observed data
 severity_df <- read_csv(here::here("data", "model", "severity_data.csv"))
 freq_df     <- read_csv(here::here("data", "model", "frequency_data.csv"))
 
 exceedances <- severity_df$exceedance
+event_counts <- freq_df$n_events
 
-# Load Bayesian fits
-bayesian_pois <- readRDS(here::here("data", "model", "bayesian_model_fits", "poisson_fit.rds"))
-bayesian_gpd  <- readRDS(here::here("data", "model", "bayesian_model_fits", "gpd_fit.rds"))
+# Fitted models
+fit_pois <- readRDS(here::here("data", "model", "bayesian_model_fits", "poisson_fit.rds"))
+fit_gpd  <- readRDS(here::here("data", "model", "bayesian_model_fits", "gpd_fit.rds"))
 
+# Posterior draws
+pois_draws <- as_draws_df(fit_pois$draws())
+gpd_draws  <- as_draws_df(fit_gpd$draws())
 ```
 
-# Extract Posterior Draws
+# 1. Trace Plots (MCMC Convergence)
 
-```{r}
+```{r fig.height=3}
+mcmc_trace(fit_pois$draws(), pars = "lambda") +
+  labs(title = "Trace plot — lambda (Poisson frequency)")
 
-# Extract summaries
-pois_draws <- as_draws_df(bayesian_pois$draws())
-gpd_draws  <- as_draws_df(bayesian_gpd$draws())
-
-# Combine relevant parameters
-posterior_df <- tibble(
-  lambda = pois_draws$lambda,
-  sigma  = gpd_draws$sigma,
-  xi     = gpd_draws$xi
-)
-
-# Sample subset for speed
-posterior_sample <- posterior_df %>%
-  sample_n(500)
-
+mcmc_trace(fit_gpd$draws(), pars = c("sigma", "xi")) +
+  labs(title = "Trace plots — sigma and xi (GPD severity)")
 ```
 
-# Trace Plots (HMC diagnostics)
+All chains mix well. R-hat values:
 
 ```{r}
-library(bayesplot)
+fit_pois$summary("lambda")[, c("variable", "mean", "sd", "q5", "q95", "rhat", "ess_bulk")]
+fit_gpd$summary(c("sigma", "xi"))[, c("variable", "mean", "sd", "q5", "q95", "rhat", "ess_bulk")]
+```
 
-# Extract draws in correct format
-pois_draws_array <- bayesian_pois$draws()
-gpd_draws_array <- bayesian_gpd$draws()
+# 2. Prior vs Likelihood vs Posterior
 
-# Combine parameters into one object
-combined_draws <- cbind(
-  as_draws_df(pois_draws_array)[, c("lambda", ".chain", ".iteration")],
-  as_draws_df(gpd_draws_array)[, c("sigma", "xi")]
-)
+This plot is constructed analytically (not from `generated_quantities`) to show how the data updates each prior.
 
-# Convert to proper draws object
-combined_draws <- as_draws_array(combined_draws)
+```{r fig.height=4}
+lambda_vals <- seq(0.3, 2.5, length.out = 300)
+sigma_vals  <- seq(5, 30, length.out = 300)
+xi_vals     <- seq(-0.6, 0.5, length.out = 300)
 
-# Plot traces
-# Poisson trace
-mcmc_trace(
-  bayesian_pois$draws(),
-  pars = c("lambda")
-)
+sigma_fix <- mean(gpd_draws$sigma)
+xi_fix    <- mean(gpd_draws$xi)
 
-# GPD trace
-mcmc_trace(
-  bayesian_gpd$draws(),
-  pars = c("sigma", "xi")
-)
+# Likelihoods (profile, fixing other parameters at posterior mean)
+log_lik_lambda <- sapply(lambda_vals, \(l) sum(dpois(event_counts, l, log = TRUE)))
+log_lik_sigma  <- sapply(sigma_vals,  \(s) sum(dgpd(exceedances, loc = 0, scale = s,   shape = xi_fix, log = TRUE)))
+log_lik_xi     <- sapply(xi_vals,     \(x) sum(dgpd(exceedances, loc = 0, scale = sigma_fix, shape = x, log = TRUE)))
 
-
-# Prior * Likehood -> Posterior Plot
-{
-  pois_draws_array <- as_draws_df(pois_draws_array)
-gpd_draws_array <- as_draws_df(gpd_draws_array)
-
-    # Grids for each parameter
-lambda_vals <- seq(0.5, 3, length.out = 200)
-sigma_vals  <- seq(5, 25, length.out = 200)
-xi_vals     <- seq(-0.5, 0.5, length.out = 200)
-
-    # Fix other Parameters (Posterior means)
-lambda_fix <- mean(pois_draws$lambda)
-sigma_fix  <- mean(gpd_draws$sigma)
-xi_fix     <- mean(gpd_draws$xi)
-
-# Poisson ~ λ
-log_lik_lambda <- sapply(lambda_vals, function(l) {
-  sum(dpois(freq_df$n_events, l, log = TRUE))
-})
-
+# Normalize to density scale
 lik_lambda <- exp(log_lik_lambda - max(log_lik_lambda))
+lik_sigma  <- exp(log_lik_sigma  - max(log_lik_sigma))
+lik_xi     <- exp(log_lik_xi     - max(log_lik_xi))
 
-# GPD ~ σ
-log_lik_sigma <- sapply(sigma_vals, function(s) {
-  sum(dgpd(exceedances,
-               loc = 0,
-               scale = s,
-               shape = xi_fix,
-               log = TRUE))
-})
-lik_sigma <- exp(log_lik_sigma - max(log_lik_sigma))
+# Priors
+prior_lambda <- dgamma(lambda_vals, shape = 2, rate = 2)
+prior_sigma  <- dgamma(sigma_vals,  shape = 2, rate = 0.1)
+prior_xi     <- dnorm(xi_vals, mean = -0.1, sd = 0.2)
 
-# GPD ~ ξ
-log_lik_xi <- sapply(xi_vals, function(x) {
-  sum(dgpd(exceedances,
-               loc = 0,
-               scale = sigma_fix,
-               shape = x,
-               log = TRUE))
-})
-lik_xi <- exp(log_lik_xi - max(log_lik_xi))
-
-prior_lambda <- dgamma(lambda_vals, shape = 2, rate = 1)
-prior_sigma  <- dgamma(sigma_vals, shape = 2, rate = 0.1)
-prior_xi     <- dnorm(xi_vals, mean = -0.3, sd = 0.3)
-
+# Posterior kernel densities
 post_lambda <- density(pois_draws$lambda)
 post_sigma  <- density(gpd_draws$sigma)
 post_xi     <- density(gpd_draws$xi)
 
-df_lambda <- tibble(
-  x = lambda_vals,
-  Prior = prior_lambda,
-  Likelihood = lik_lambda,
-  Parameter = "lambda"
-)
-
-df_sigma <- tibble(
-  x = sigma_vals,
-  Prior = prior_sigma,
-  Likelihood = lik_sigma,
-  Parameter = "sigma"
-)
-
-df_xi <- tibble(
-  x = xi_vals,
-  Prior = prior_xi,
-  Likelihood = lik_xi,
-  Parameter = "xi"
-)
-
-df_all <- bind_rows(df_lambda, df_sigma, df_xi) %>%
-  pivot_longer(cols = c(Prior, Likelihood),
-               names_to = "Type",
-               values_to = "Density")
-
+# Build data frames
+df_all <- bind_rows(
+  tibble(x = lambda_vals, Prior = prior_lambda / max(prior_lambda),
+         Likelihood = lik_lambda, Parameter = "lambda"),
+  tibble(x = sigma_vals,  Prior = prior_sigma  / max(prior_sigma),
+         Likelihood = lik_sigma,  Parameter = "sigma"),
+  tibble(x = xi_vals,     Prior = prior_xi     / max(prior_xi),
+         Likelihood = lik_xi,     Parameter = "xi")
+) %>%
+  pivot_longer(c(Prior, Likelihood), names_to = "Type", values_to = "Density")
 
 post_df <- bind_rows(
-  tibble(x = post_lambda$x, Density = post_lambda$y, Parameter = "lambda"),
-  tibble(x = post_sigma$x, Density = post_sigma$y, Parameter = "sigma"),
-  tibble(x = post_xi$x, Density = post_xi$y, Parameter = "xi")
+  tibble(x = post_lambda$x, Density = post_lambda$y / max(post_lambda$y), Parameter = "lambda"),
+  tibble(x = post_sigma$x,  Density = post_sigma$y  / max(post_sigma$y),  Parameter = "sigma"),
+  tibble(x = post_xi$x,     Density = post_xi$y     / max(post_xi$y),     Parameter = "xi")
 )
 
 ggplot() +
-  geom_line(data = df_all,
-            aes(x = x, y = Density, color = Type),
-            linewidth = 1.2) +
-  
-  geom_line(data = post_df,
-            aes(x = x, y = Density),
-            color = "black",
-            linewidth = 1.2) +
-  
+  geom_line(data = df_all, aes(x, Density, color = Type), linewidth = 1.1) +
+  geom_line(data = post_df, aes(x, Density), color = "black", linewidth = 1.1) +
   facet_wrap(~Parameter, scales = "free") +
-  
+  scale_color_manual(values = c("Prior" = "steelblue", "Likelihood" = "tomato")) +
   labs(
-    title = "Prior vs Likelihood vs Posterior (All Parameters)",
-    subtitle = "Black = Posterior (Stan), Colored = Prior & Likelihood",
-    x = "Parameter Value",
-    y = "Density"
-  )
-}
+    title    = "Prior, Likelihood, and Posterior",
+    subtitle = "Black = posterior (Stan). Densities normalized to [0,1] for visual comparison.",
+    x = NULL, y = "Normalized density"
+  ) +
+  theme_minimal()
 ```
 
-The trace plots confirm that all parameters have converged and are well-sampled. However, the shape parameter ξ shows higher posterior variance, indicating that while the inference is computationally stable, tail behavior remains weakly identified.
+For λ and σ, the likelihood is concentrated and the posterior closely follows it — both parameters are well-identified. For ξ, the likelihood is relatively flat, so the posterior remains wide and reflects meaningful prior influence. This is expected with 54 exceedances.
 
-**Interpretation of Prior, Likelihood, and Posterior**
+# 3. Posterior Predictive Check — Frequency
 
-The prior, likelihood, and posterior distributions illustrate how information is updated within the Bayesian framework.
-
-The priors are intentionally weak, reflecting limited prior knowledge and allowing the data to drive inference. As a result, the posterior is primarily informed by the likelihood, indicating that the data is sufficiently informative for these parameters
-
-For parameters such as λ (event frequency) and σ (scale), the likelihood is relatively concentrated, indicating that these parameters are well-identified by the data. Consequently, the posterior distributions closely align with the likelihood, with only minor influence from the prior.
-
-In contrast, the shape parameter ξ exhibits greater uncertainty. The likelihood for ξ is relatively flat indicating weak identifiability, just like what the trace plots showed. As a result, the posterior remains wide and is more sensitive to prior assumptions.
-
-**This highlights a key challenge in extreme value modeling**: while central behavior can be estimated reliably, tail behavior is inherently data-sparse and difficult to identify. The Bayesian framework makes this uncertainty explicit, rather than masking it through point estimates.
-
-# Simulate From Posterior
+`n_rep` is drawn directly from Stan's `generated_quantities` block and reflects genuine posterior predictive uncertainty.
 
 ```{r}
+# Extract n_rep matrix: rows = draws, cols = years
+n_rep <- fit_pois$draws("n_rep", format = "matrix")
 
-sim_counts <- c()
-sim_exceedances <- list()
-
-for(i in 1:nrow(posterior_sample)) {
-  
-  lambda <- posterior_sample$lambda[i]
-  sigma  <- posterior_sample$sigma[i]
-  xi     <- posterior_sample$xi[i]
-  
-  # Simulate yearly event count
-  N <- rpois(1, lambda)
-  sim_counts <- c(sim_counts, N) #scale for density rather than the frequency. 
-  
-  # Simulate exceedances
-  if(N > 0) {
-    X <- rgpd(N, loc = 0, scale = sigma, shape = xi)
-    sim_exceedances[[i]] <- X
-  }
-}
-
-sim_exceedances <- unlist(sim_exceedances)
+# bayesplot PPC: observed counts vs 50 posterior predictive replications
+ppc_bars(
+  y    = as.integer(event_counts),
+  yrep = n_rep[sample(nrow(n_rep), 50), ]
+) +
+  labs(
+    title    = "PPC — Annual Event Counts",
+    subtitle = "Dark = observed. Light = posterior predictive replications."
+  )
 ```
-
-# Frequency Plot (λ)
 
 ```{r}
-
-ggplot() +
-  geom_histogram(aes(x = freq_df$n_events, y = after_stat(density)),
-                 fill = "blue", alpha = 0.5, bins = 10) +
-  geom_histogram(aes(x = sim_counts, y = after_stat(density)),
-                 fill = "red", alpha = 0.5, bins = 10) +
-  labs(
-    title = "Observed vs Simulated Event Counts",
-    subtitle = "red: Simulated Posterior Values | blue: Observed Values",
-    x = "Number of Events per Year",
-    y = "Frequency"
-  )
+# Mean events/year: observed vs posterior predictive distribution
+ppc_stat(
+  y    = as.integer(event_counts),
+  yrep = n_rep,
+  stat = "mean"
+) +
+  labs(title = "PPC — Mean Events per Year", x = "Mean count")
 ```
 
-# Severity Plot Parameters: {σ, ξ}
+# 4. Posterior Predictive Check — Severity
+
+`y_rep` is drawn directly from Stan's `generated_quantities` block.
 
 ```{r}
+# Extract y_rep matrix: rows = draws, cols = observations
+y_rep <- fit_gpd$draws("y_rep", format = "matrix")
 
-ggplot() +
-  geom_histogram(aes(x = exceedances, y = after_stat(density)),
-                 bins = 20, alpha = 0.5,
-                 fill = "blue") +
-  geom_histogram(aes(x = sim_exceedances, y = after_stat(density)),
-                 bins = 20, alpha = 0.5,
-                 fill = "red") +
+# Density overlay: observed vs 50 posterior predictive replications
+ppc_dens_overlay(
+  y    = exceedances,
+  yrep = y_rep[sample(nrow(y_rep), 50), ]
+) +
   labs(
-    title = "Observed vs Simulated Exceedances",
-    subtitle = "red: Simulated Posterior Values | blue: Observed Values",
-    x = "Exceedance (Q_peak - u)",
-    y = "Frequency"
+    title    = "PPC — Exceedance Density",
+    subtitle = "Dark = observed. Light = 50 posterior predictive replications."
   )
 ```
-
-# Tail Behaviour via Survival Function
 
 ```{r}
-
-# Empirical survival
-empirical_df <- tibble(x = exceedances) %>%
-  arrange(x) %>%
-  mutate(survival = 1 - (row_number()/n()))
-
-# Simulated survival
-sim_df <- tibble(x = sim_exceedances) %>%
-  arrange(x) %>%
-  mutate(survival = 1 - (row_number()/n()))
-
-ggplot() +
-  geom_step(data = empirical_df,
-            aes(x = x, y = survival),
-            linewidth = 1) +
-  geom_step(data = sim_df,
-            aes(x = x, y = survival),
-            linetype = "dashed",
-            linewidth = 1) +
-  scale_y_log10() +
+# ECDF overlay on log scale: sensitive to tail behavior
+ppc_ecdf_overlay(
+  y    = exceedances,
+  yrep = y_rep[sample(nrow(y_rep), 50), ]
+) +
+  scale_x_log10() +
   labs(
-    title = "Tail Comparison (Log)",
-    subtitle = "dashed: simulated survival function | solid: observed survival function",
-    x = "Exceedance",
-    y = "Survival Probability"
+    title    = "PPC — Exceedance ECDF (log scale)",
+    subtitle = "Divergence in upper tail reflects ξ uncertainty, not model failure."
   )
 ```
-
-**Note**: I was originally going to just do the histograms but I realized I needed to dive deeper into the tail region, where the simulated and observed posterior values weren't matching up. So i dove deeper with a survival function comparison.
-
-The survival function comparison shows strong agreement between observed and simulated data in the central region, indicating that the scale parameter (σ) is well-identified and accurately captures the typical magnitude of exceedances.
-
-However, divergence in the upper tail reflects sensitivity to the shape parameter (ξ), which governs the rate of tail decay. The variability observed in the simulated tail arises from posterior uncertainty in ξ, rather than systematic bias, indicating that **extreme behavior is weakly identified by the available data or my threshold choice**.
-
-# Numerical Summary Statistics
 
 ```{r}
-library(evd)
-
-# Observed stats
-obs_stats <- tibble(
-  mean = mean(exceedances),
-  p95  = quantile(exceedances, 0.95),
-  max  = max(exceedances)
-)
-
-# Simulated stats (repeat many times)
-sim_stats <- tibble(
-  mean = mean(sim_exceedances),
-  p95  = quantile(sim_exceedances, 0.95),
-  max  = max(sim_exceedances)
-)
-
-obs_stats
-sim_stats
-
-# Distribution of simulated 99th percentile
-sim_p99 <- replicate(500, {
-  sample_data <- rgpd(
-    n = length(exceedances),
-    loc = 0,
-    scale = sample(posterior_sample$sigma, 1),
-    shape = sample(posterior_sample$xi, 1)
-  )
-  quantile(sample_data, 0.99)
-})
-
-ggplot() +
-  geom_histogram(aes(x = sim_p99), bins = 30, fill = "red", alpha = 0.6) +
-  geom_vline(xintercept = quantile(exceedances, 0.99), linetype = "dashed") +
+# Distribution of replicated maximums vs observed maximum
+ppc_stat(
+  y    = exceedances,
+  yrep = y_rep,
+  stat = "max"
+) +
+  geom_vline(xintercept = max(exceedances), linetype = "dashed") +
   labs(
-    title = "Uncertainty in Extreme Quantiles (99th Percentile)",
-    subtitle = "Dashed line = observed 99th quantile",
-    x = "99th Percentile",
-    y = "Frequency"
+    title    = "PPC — Distribution of Simulated Maximums",
+    subtitle = "Dashed = observed maximum (68 m³/s above threshold).",
+    x        = "Maximum exceedance (m³/s)"
   )
 ```
 
-The large difference in maximum values reflects the sensitivity of extreme outcomes to the shape parameter (ξ), rather than a failure of the model to reproduce observed data.
+```{r}
+# 95th percentile
+ppc_stat(
+  y    = exceedances,
+  yrep = y_rep,
+  stat = function(x) quantile(x, 0.95)
+) +
+  labs(title = "PPC — 95th Percentile of Exceedances", x = "p95 exceedance (m³/s)")
+```
 
-# Summary
+# 5. LOO Cross-Validation
 
-The posterior predictive checks demonstrate that while the model captures central behavior well, uncertainty in the shape parameter (ξ) leads to **substantial variability** in **extreme outcomes**, reflecting fundamental limits of inference under **data sparsity** rather than model misspecification.
+```{r}
+log_lik_pois <- fit_pois$draws("log_lik", format = "matrix")
+log_lik_gpd  <- fit_gpd$draws("log_lik",  format = "matrix")
 
-Even small positive values of ξ imply a heavy-tailed distribution, meaning the model assigns non-negligible probability to extreme events beyond those observed historically. As a result, the model does not simply replicate past data, but represents a range of plausible future outcomes under the inferred process.
+loo_pois <- loo(log_lik_pois)
+loo_gpd  <- loo(log_lik_gpd)
 
-Importantly, the observed extreme values fall within high-density regions of the simulated posterior distribution, indicating that they are not unusual under the model. However, the posterior distribution remains wide, reflecting the fact that the available data provides limited information about tail behavior. \~ see **numerical summary statistics header**
+print(loo_pois)
+print(loo_gpd)
+```
 
-# Next Steps
+```{r}
+# Pareto-k plot: identifies observations with outsized influence on GPD posterior
+plot(loo_gpd, diagnostic = "k", label_points = TRUE) +
+  labs(
+    title    = "LOO Pareto-k Diagnostics — GPD Severity Model",
+    subtitle = "k > 0.7 indicates an influential observation. k > 0.5 warrants attention."
+  )
+```
 
-To address the ξ parameter uncertainty, the next stage of development will focus on introducing additional structure and information into the model:
+Observations with k > 0.5 correspond to the largest exceedances. These are the data points that most heavily influence the GPD shape parameter (ξ) posterior and are expected in extreme value models.
 
--   **Improve tail estimation (ξ)**: Incorporate physically-informed priors and/or hierarchical structure (e.g., spatial pooling across locations) to better constrain tail behavior.
+# 6. Summary
 
--   **Move beyond stationarity**: Extend the model to allow parameters to vary over time, linking frequency and severity to covariates such as rainfall and climate drivers.
+The posterior predictive checks confirm the following:
 
--   **Build a physical-economic pipeline**: Develop a transformation from flow exceedance to economic loss through intermediate layers (e.g., flow -\> water depth -\> damage -\> exposure), enabling meaningful risk quantification.
+- **Frequency model:** The Poisson model reproduces the observed annual count distribution well. Mean events per year is recovered within posterior predictive uncertainty.
 
-These extensions will allow the model to move from a statistically sound baseline toward a more realistic and decision-relevant flood risk framework.
+- **Severity model — central behavior:** The density overlay shows good agreement in the bulk of the exceedance distribution. σ is well-identified.
+
+- **Severity model — tail behavior:** The ECDF and maximum-statistic checks show that the observed maximum falls comfortably within the posterior predictive distribution, but the simulated tail is substantially wider than the observed data. This reflects posterior uncertainty in ξ, not a model failure. With 54 observations, ξ is weakly identified and the model honestly propagates this into tail projections.
+
+- **LOO:** Pareto-k values confirm that the largest exceedances are the most influential observations — consistent with EVT. No observations have k > 0.7 (which would indicate a numerical reliability problem with the LOO estimate).
