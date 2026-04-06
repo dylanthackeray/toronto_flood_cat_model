@@ -177,7 +177,7 @@ download_hydat()
 **Primary:** Water Survey of Canada (HYDAT)  
 - Station: Don River at Todmorden (02HC024)
 - Period: 1961–2023 (63 years)
-- Access: \`tidyhydat::get_hydat_stations()\` and \`get_hy_data()\`
+- Access: `r tidyhydat::get_hydat_stations()` and `r get_hy_data()`
 
 **Secondary:** Environment Canada Water Office  
 - Water level data 2002–2023 (for rating curve construction)
