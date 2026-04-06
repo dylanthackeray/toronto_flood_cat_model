@@ -59,7 +59,7 @@ simulate_losses <- function(lambda, sigma, xi, alpha, beta, n_years = 1) {
 # Bayesian Loss Simulation
 # ============================================================
 
-simulate_posterior_losses <- function(posterior_sample, alpha, beta, n_sim = 1000) {
+simulate_posterior_losses <- function(posterior_sample, alpha, beta, n_sim = 10000) {
   
   n_sim <- min(n_sim, nrow(posterior_sample))
   annual_losses <- numeric(n_sim)

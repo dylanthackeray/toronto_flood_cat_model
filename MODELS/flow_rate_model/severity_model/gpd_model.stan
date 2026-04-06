@@ -23,7 +23,7 @@ parameters {
 model {
   // Priors
   sigma ~ gamma(2, 0.1);     // weak but positive, (mean = shape/rate | variance = shape/rate^2)
-  xi ~ normal(0, 0.3);       // centered near 0 (light/moderate tails)
+  xi ~ normal(-0.3, 0.3);       // centered near 0 (light/moderate tails)
 
   // Likelihood
   for (n in 1:N) {

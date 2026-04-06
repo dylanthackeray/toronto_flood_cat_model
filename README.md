@@ -31,13 +31,13 @@ The model separates flood risk into two components:
 **Frequency:** How often do floods occur?
 - Poisson(λ) model for annual event counts
 - λ ~ Gamma(α, β) prior encoding physical prior knowledge
-- Fitted to 34 years of independent flood events (1961–2023)
+- Fitted to 63 years of independent flood events (1961–2023)
 - Result: λ ≈ 1.55 events/year [95% CI: 1.15–2.00]
 
 **Severity:** When a flood occurs, how large is it?
 - Generalized Pareto Distribution (σ, ξ) for exceedances above threshold
 - σ ~ Gamma(2, 0.1) and ξ ~ N(-0.3, 0.3) priors with physical justification
-- Fitted to 54 independent exceedances (m³/s above u_statistical)
+- Fitted to 54 independent exceedances (m³/s above u_physical)
 - Result: σ ≈ 13.2 m³/s, ξ ≈ -0.12 [both with uncertainty intervals]
 
 **Pipeline:**

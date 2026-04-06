@@ -10,8 +10,8 @@ library(tidyverse)
 library(here)
 
 # Load model functions
-source(here::here("models", "flow_rate_model", "frequency_model", "poisson_model.R"))
-source(here::here("models","flow_rate_model", "severity_model", "gpd_model.R"))
+source(here::here("MODELS", "flow_rate_model", "frequency_model", "poisson_model.R"))
+source(here::here("MODELS","flow_rate_model", "severity_model", "gpd_model.R"))
 
 # ------------------------------------------------------------
 # Load Data

@@ -144,6 +144,8 @@ $$
 \xi \sim \mathcal{N}(-0.3, 0.3)
 $$
 
+The shape parameter is hard-constrained to ξ ∈ [-0.3, 1] in the Stan model. The lower bound rules out implausibly short-tailed distributions; the upper bound prevents explosive tail behaviour inconsistent with observed hydrology.
+
 ---
 
 ## Bayesian Inference via Hamiltonian Monte Carlo (HMC)
