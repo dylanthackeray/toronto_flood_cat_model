@@ -145,29 +145,29 @@ download_hydat()
 
 ### Workflow
 
-1. **Data prep:** \`R_scripts/01_data_collection.R\`
+1. **Data prep:** [R_scripts/01_data_collection.R](R_scripts/01_data_collection.R)
    - Downloads HYDAT data for Don River at Todmorden (02HC024)
    - Cleans and declusters to produce independent events
 
-2. **Exploration:** \`R_notebooks/01_EDA.Rmd\`
+2. **Exploration:** [R_notebooks/01_EDA.Rmd](R_notebooks/01_EDA.Rmd)
    - Summary statistics, time series, histograms
    - Visual assessment of trend and structure
 
-3. **Threshold selection:** \`R_notebooks/02_physical_threshold_selection.Rmd\`
+3. **Threshold selection:** [R_notebooks/02_physical_threshold_selection.Rmd](R_notebooks/02_physical_threshold_selection.Rmd)
    - Justifies u_physical = 40 m³/s from rating curve and historical flood dates
    - Determines u_statistical from flow percentiles
 
-4. **Model fitting:** \`R_scripts/05_run_bayesian_pipeline.R\`
+4. **Model fitting:** [R_scripts/05_run_bayesian_pipeline.R](R_scripts/05_run_bayesian_pipeline.R)
    - Fits Poisson frequency model (Stan)
    - Fits GPD severity model (Stan)
    - Extracts posterior draws
 
-5. **Validation:** \`R_notebooks/Posterior Predictive Checks/\`
+5. **Validation:** [R_notebooks/Posterior Predictive Checks/01...](R_notebooks/Posterior%20Predictive%20Checks/01_Posterior_Predictive_Checks.Rmd)
    - Compares observed vs simulated event counts and exceedances
    - Tail behavior diagnostics
    - Uncertainty quantification
 
-6. **Simulation:** (In progress)
+6. **Simulation / Loss Function:** (In progress)
    - Monte Carlo engine to produce AEP curves and loss distributions
 
 ---
@@ -246,10 +246,8 @@ This project is licensed under the MIT License. See [LICENSE](LICENSE) for detai
 
 If you use this model or adapt it for your own work, please cite:
 
-\`\`\`
 Thackeray, D. (2026). Don River Flood Risk Model (Version 1.0). 
-Retrieved from https://github.com/[toronto_flood_cat_model]
-\`\`\`
+Retrieved from https://github.com/[dylan_thackeray/toronto_flood_cat_model]
 
 ---
 
